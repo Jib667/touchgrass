@@ -1,11 +1,99 @@
 # TouchGrass
 
-TouchGrass is an application that allows users to select a region in Google Maps like a polygon and get AI suggestions for an itinerary formed around that drawn-out area.
+An interactive web application that helps users explore the world by selecting regions on Google Maps to get AI-suggested itineraries.
 
 ## Project Structure
 
-- `frontend/`: React frontend built with Vite
-- `backend/`: Python Flask backend
+- `frontend/`: React/Vite frontend application
+- `backend/`: Python/Flask backend application
+
+## Firebase Setup
+
+### Prerequisites
+
+1. Install Firebase CLI:
+```
+npm install -g firebase-tools
+```
+
+2. Login to Firebase:
+```
+firebase login
+```
+
+### Frontend Deployment
+
+1. Navigate to the frontend directory:
+```
+cd frontend
+```
+
+2. Build and deploy:
+```
+npm run firebase:deploy
+```
+
+### Backend Deployment (Cloud Functions)
+
+1. Navigate to the backend directory:
+```
+cd backend
+```
+
+2. Deploy the Cloud Function:
+```
+firebase deploy --only functions
+```
+
+## Local Development
+
+### Frontend
+
+1. Navigate to the frontend directory:
+```
+cd frontend
+```
+
+2. Install dependencies:
+```
+npm install
+```
+
+3. Start development server:
+```
+npm run dev
+```
+
+### Backend
+
+1. Navigate to the backend directory:
+```
+cd backend
+```
+
+2. Create and activate a virtual environment:
+```
+python -m venv venv
+source venv/bin/activate  # On Windows: venv\Scripts\activate
+```
+
+3. Install dependencies:
+```
+pip install -r requirements.txt
+```
+
+4. Start the Flask server:
+```
+python main.py
+```
+The backend API will be available at http://localhost:8080
+
+## Firebase Features Used
+
+- **Firebase Authentication**: User authentication with Google and Email/Password
+- **Firebase Hosting**: Frontend web application hosting
+- **Cloud Functions for Firebase**: Serverless backend API
+- **Firestore Database**: Data storage for user information and itineraries
 
 ## Prerequisites
 
@@ -54,9 +142,9 @@ The frontend will be available at http://localhost:5173
 ```bash
 cd backend
 source venv/bin/activate  # On Windows: venv\Scripts\activate
-python app.py
+python main.py
 ```
-The backend API will be available at http://localhost:8000
+The backend API will be available at http://localhost:8080
 
 ### Option 2: Run Both with One Command (requires concurrently)
 

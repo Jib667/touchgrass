@@ -18,5 +18,9 @@
   "license": "ISC",
   "devDependencies": {
     "concurrently": "^8.2.2"
+  },
+  "dependencies": {
+    "esbuild": "^0.25.4",
+    "react-router-dom": "^7.6.0"
   }
-} 
+}
