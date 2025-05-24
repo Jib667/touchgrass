@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { auth, signOutUser, deleteUserAccount } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import MapComponent from './GoogleMap';
 import '../styles/Dashboard.css';
 
 const Dashboard = () => {
@@ -14,6 +15,7 @@ const Dashboard = () => {
   const [userPreferences, setUserPreferences] = useState(null);
   const [preferencesLoading, setPreferencesLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const navigate = useNavigate();
   const db = getFirestore();
 
@@ -111,8 +113,9 @@ const Dashboard = () => {
       const result = await deleteUserAccount();
       
       if (result.success) {
-        alert("Your account has been successfully deleted.");
-        navigate('/');
+        setShowConfirmModal(false);
+        setShowSuccessModal(true);
+        // Don't navigate immediately, let the user see the success message
       } else {
         if (result.error.code === 'auth/requires-recent-login') {
           alert(result.error.message);
@@ -129,6 +132,11 @@ const Dashboard = () => {
       setLoadingError("Failed to remove your account. Please try again.");
       setLoading(false);
     }
+  };
+  
+  const handleSuccessModalClose = () => {
+    setShowSuccessModal(false);
+    navigate('/');
   };
   
   const handleViewProfile = () => {
@@ -322,10 +330,14 @@ const Dashboard = () => {
 
   const renderMainView = () => (
     <main className="dashboard-content">
-      <div className="empty-state">
-        <h2>Welcome to your dashboard</h2>
-        <p>Select a region on the map to get started with your adventure.</p>
+      <div className="dashboard-sidebar">
+        <h2>Explore</h2>
+        <p>Discover nearby natural destinations to connect with nature and find your next adventure.</p>
+        
+        {/* More content can be added to the sidebar later */}
       </div>
+      
+      <MapComponent />
     </main>
   );
 
@@ -422,6 +434,24 @@ const Dashboard = () => {
     </div>
   );
 
+  const renderSuccessModal = () => (
+    <div className="success-modal-overlay">
+      <div className="success-modal">
+        <div className="success-modal-header">
+          <h2>Success</h2>
+        </div>
+        <div className="success-modal-content">
+          <p>Your account has been successfully deleted.</p>
+          <div className="success-modal-actions">
+            <button className="success-action" onClick={handleSuccessModalClose}>
+              OK
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="dashboard-container">
       {/* Header with logo and user info */}
@@ -440,6 +470,9 @@ const Dashboard = () => {
       
       {/* Confirm modal for account deletion */}
       {showConfirmModal && renderConfirmModal()}
+      
+      {/* Success modal after account deletion */}
+      {showSuccessModal && renderSuccessModal()}
     </div>
   );
 };

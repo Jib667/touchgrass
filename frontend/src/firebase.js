@@ -22,15 +22,15 @@ import {
   serverTimestamp
 } from 'firebase/firestore';
 
-// Your web app's Firebase configuration
+// Your web app's Firebase configuration using environment variables
 const firebaseConfig = {
-  apiKey: "AIzaSyD1IzjTPhMB1ZVuz7Ynw_XKzPDRhRDzYUk",
-  authDomain: "touchgrass-ee2f5.firebaseapp.com",
-  projectId: "touchgrass-ee2f5",
-  storageBucket: "touchgrass-ee2f5.appspot.com", 
-  messagingSenderId: "864478643392",
-  appId: "1:864478643392:web:f0207bf37c7ee0696ed925",
-  measurementId: "G-555Q0BB9DV"
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET, 
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
 // Initialize Firebase
