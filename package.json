@@ -1,0 +1,22 @@
+{
+  "name": "touchgrass",
+  "version": "0.1.0",
+  "description": "An app that allows users to select a region in Google Maps and get AI suggestions for an itinerary",
+  "main": "index.js",
+  "scripts": {
+    "frontend": "cd frontend && npm run dev",
+    "backend": "cd backend && source venv/bin/activate && python app.py",
+    "dev": "concurrently \"npm run frontend\" \"npm run backend\""
+  },
+  "keywords": [
+    "travel",
+    "maps",
+    "ai",
+    "itinerary"
+  ],
+  "author": "",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+} 
