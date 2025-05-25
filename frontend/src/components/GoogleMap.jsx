@@ -1,16 +1,16 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { GoogleMap, useJsApiLoader, Marker } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Circle, Marker } from '@react-google-maps/api';
 
-const mapContainerStyle = {
-  width: '100%',
-  height: '100%'
-};
+// Define libraries as a constant outside the component to prevent reloading issues
+const libraries = ['places', 'geometry'];
 
+// Default to Burke, Virginia
 const defaultCenter = {
-  lat: 37.7749, // Default to San Francisco
-  lng: -122.4194
+  lat: 38.7934, // Burke, VA
+  lng: -77.2717
 };
 
+// Map styles
 const defaultOptions = {
   disableDefaultUI: true,
   zoomControl: false,
@@ -91,127 +91,19 @@ const defaultOptions = {
   ]
 };
 
-const MapComponent = () => {
+const MapComponent = ({ onRegionSelect }) => {
   const [map, setMap] = useState(null);
   const [center, setCenter] = useState(defaultCenter);
   const [userLocation, setUserLocation] = useState(null);
-  const [locationPermission, setLocationPermission] = useState('prompt'); // 'prompt', 'granted', 'denied'
   const [isMapLoaded, setIsMapLoaded] = useState(false);
-  const markerRef = useRef(null);
-
-  const { isLoaded } = useJsApiLoader({
-    id: 'google-map-script',
-    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY
-  });
-
-  // Get user's location on component mount
-  useEffect(() => {
-    checkLocationPermission();
-  }, []);
-
-  // Check if geolocation permission has been granted
-  const checkLocationPermission = () => {
-    if (navigator.permissions) {
-      navigator.permissions.query({ name: 'geolocation' })
-        .then(permissionStatus => {
-          setLocationPermission(permissionStatus.state);
-          
-          if (permissionStatus.state === 'granted') {
-            getUserLocation();
-          }
-          
-          permissionStatus.onchange = () => {
-            setLocationPermission(permissionStatus.state);
-            
-            if (permissionStatus.state === 'granted') {
-              getUserLocation();
-            }
-          };
-        })
-        .catch(error => {
-          console.error("Error checking geolocation permission:", error);
-        });
-    } else {
-      // Fallback for browsers that don't support the Permissions API
-      getUserLocation();
-    }
-  };
-
-  // Get user's current location
-  const getUserLocation = () => {
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        position => {
-          const userPos = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          setUserLocation(userPos);
-          setCenter(userPos);
-          
-          // If map is already loaded, pan to user location
-          if (map) {
-            map.panTo(userPos);
-          }
-        },
-        error => {
-          console.error("Error getting user location:", error);
-          if (error.code === error.PERMISSION_DENIED) {
-            setLocationPermission('denied');
-          }
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 5000,
-          maximumAge: 0
-        }
-      );
-    }
-  };
-
-  const onMapLoad = useCallback(map => {
-    setMap(map);
-    setIsMapLoaded(true);
-  }, []);
-
-  const onUnmount = useCallback(() => {
-    setMap(null);
-    setIsMapLoaded(false);
-  }, []);
-
-  const centerMapOnUser = () => {
-    if (userLocation && map) {
-      map.panTo(userLocation);
-      map.setZoom(15);
-    } else {
-      getUserLocation();
-    }
-  };
-
-  const handleRequestLocation = () => {
-    getUserLocation();
-  };
-
-  const handleDenyLocation = () => {
-    setLocationPermission('denied');
-  };
-
-  const renderLocationRequest = () => {
-    if (locationPermission === 'prompt') {
-      return (
-        <div className="location-request">
-          <h3>Allow Location Access</h3>
-          <p>TouchGrass needs your location to show you nearby natural attractions and help you plan your adventures.</p>
-          <div className="location-request-buttons">
-            <button className="location-deny" onClick={handleDenyLocation}>Not Now</button>
-            <button className="location-allow" onClick={handleRequestLocation}>Allow</button>
-          </div>
-        </div>
-      );
-    }
-    return null;
-  };
-
+  const [mapType, setMapType] = useState('hybrid'); // Start with satellite + labels
+  const [selectedRegion, setSelectedRegion] = useState(null);
+  const [circleRadius, setCircleRadius] = useState(0);
+  const [resizeMarker, setResizeMarker] = useState(null);
+  const [showExploreButton, setShowExploreButton] = useState(false);
+  const animationRef = useRef(null);
+  const mapContainerRef = useRef(null);
+  
   // Custom marker icon
   const userMarkerIcon = {
     path: "M12,2C8.14,2 5,5.14 5,9c0,5.25 7,13 7,13s7,-7.75 7,-13c0,-3.86 -3.14,-7 -7,-7zM12,13.5c-2.49,0 -4.5,-2.01 -4.5,-4.5S9.51,4.5 12,4.5s4.5,2.01 4.5,4.5 -2.01,4.5 -4.5,4.5z",
@@ -222,13 +114,230 @@ const MapComponent = () => {
     scale: 1.5,
     anchor: { x: 12, y: 22 },
   };
+  
+  // Resize handle marker icon
+  const resizeHandleIcon = {
+    path: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z",
+    fillColor: "#00e676",
+    fillOpacity: 1,
+    strokeWeight: 2,
+    strokeColor: "#ffffff",
+    rotation: 0,
+    scale: 1.2,
+    anchor: { x: 12, y: 12 },
+  };
+
+  const { isLoaded, loadError } = useJsApiLoader({
+    id: 'google-map-script',
+    googleMapsApiKey: import.meta.env.VITE_GOOGLE_MAPS_API_KEY,
+    libraries: libraries
+  });
+
+  // Update refs when state changes
+  useEffect(() => {
+    // Get user location when component mounts
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        position => {
+          const userPos = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          setUserLocation(userPos);
+          setCenter(userPos);
+        },
+        error => {
+          console.log("Geolocation error:", error);
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 10000,
+          maximumAge: 0
+        }
+      );
+    }
+  }, []);
+
+  // Map initialization
+  const onMapLoad = useCallback(map => {
+    setMap(map);
+    setIsMapLoaded(true);
+    
+    // Set to hybrid view
+    map.setMapTypeId('hybrid');
+    
+    // Add click listener to create circles
+    map.addListener('click', handleMapClick);
+  }, []);
+
+  const onUnmount = useCallback(() => {
+    if (map) {
+      google.maps.event.clearListeners(map, 'click');
+    }
+    setMap(null);
+    setIsMapLoaded(false);
+  }, [map]);
+  
+  // Handle map click to create a circle
+  const handleMapClick = (e) => {
+    // If already have a region, don't create a new one
+    if (selectedRegion) {
+      // Clear existing region first
+      handleClearRegion();
+    }
+    
+    // Get the clicked position
+    const clickLatLng = e.latLng;
+    createCircleRegion(clickLatLng);
+  };
+  
+  // Create a circle region
+  const createCircleRegion = (clickPosition) => {
+    // Create a circle at click position
+    const center = { 
+      lat: clickPosition.lat(), 
+      lng: clickPosition.lng() 
+    };
+    
+    setSelectedRegion({
+      center: center
+    });
+    
+    // Calculate appropriate radius for current map view
+    let targetRadius = 300; // Default radius in meters
+    if (map) {
+      const bounds = map.getBounds();
+      if (bounds) {
+        const ne = bounds.getNorthEast();
+        const sw = bounds.getSouthWest();
+        
+        // Calculate the visible width and height of the map in meters
+        const latDistance = Math.abs(ne.lat() - sw.lat());
+        const lngDistance = Math.abs(ne.lng() - sw.lng());
+        
+        // Calculate distance in meters
+        const latMeters = latDistance * 111000; // 1 degree lat ≈ 111km
+        const lngMeters = lngDistance * 111000 * Math.cos(center.lat * Math.PI/180); 
+        
+        // Calculate diagonal of map in meters
+        const diagonalMeters = Math.sqrt(Math.pow(latMeters, 2) + Math.pow(lngMeters, 2));
+        
+        // Set the target radius to be around 25% of the diagonal
+        targetRadius = diagonalMeters * 0.25;
+        
+        // Ensure radius is reasonable
+        const minRadius = 100; // 100 meters minimum radius
+        const maxRadius = 2000; // 2km maximum radius
+        targetRadius = Math.max(Math.min(targetRadius, maxRadius), minRadius);
+      }
+    }
+    
+    // Animate the circle growing
+    let startTime = null;
+    const animationDuration = 500; // ms
+    
+    const animateCircle = (timestamp) => {
+      if (!startTime) startTime = timestamp;
+      const elapsed = timestamp - startTime;
+      const progress = Math.min(elapsed / animationDuration, 1);
+      
+      // Ease-out function for smooth animation
+      const easeOut = (t) => 1 - Math.pow(1 - t, 2);
+      const currentRadius = easeOut(progress) * targetRadius;
+      
+      setCircleRadius(currentRadius);
+      
+      if (progress < 1) {
+        animationRef.current = requestAnimationFrame(animateCircle);
+      } else {
+        // Animation complete
+        // Calculate position for resize handle (east point of circle)
+        const resizeHandlePosition = {
+          lat: center.lat,
+          lng: center.lng + (currentRadius / (111000 * Math.cos(center.lat * Math.PI / 180)))
+        };
+        setResizeMarker(resizeHandlePosition);
+        
+        // Show the explore button
+        setShowExploreButton(true);
+      }
+    };
+    
+    // Start animation
+    animationRef.current = requestAnimationFrame(animateCircle);
+  };
+
+  // Handler for resize marker drag
+  const handleResizeMarkerDrag = (e) => {
+    if (!selectedRegion) return;
+    
+    const newPosition = { lat: e.latLng.lat(), lng: e.latLng.lng() };
+    setResizeMarker(newPosition);
+    
+    // Calculate new radius based on distance from center to marker
+    const center = selectedRegion.center;
+    const dx = (newPosition.lng - center.lng) * 111000 * Math.cos(center.lat * Math.PI / 180);
+    const dy = (newPosition.lat - center.lat) * 111000;
+    const newRadius = Math.sqrt(dx * dx + dy * dy);
+    
+    // Set minimum radius
+    const minRadius = 50;
+    setCircleRadius(Math.max(newRadius, minRadius));
+  };
+
+  // Clear the selected region
+  const handleClearRegion = () => {
+    setSelectedRegion(null);
+    setCircleRadius(0);
+    setResizeMarker(null);
+    setShowExploreButton(false);
+  };
+  
+  // Handle explore button click
+  const handleExplore = () => {
+    if (!selectedRegion || !circleRadius) return;
+    
+    // Create region data to pass to parent
+    const regionData = {
+      center: selectedRegion.center,
+      radius: circleRadius
+    };
+    
+    // Call the callback from parent component
+    if (onRegionSelect) {
+      onRegionSelect(regionData);
+    }
+  };
+
+  // Center map on user's location
+  const centerMapOnUser = () => {
+    if (userLocation && map) {
+      map.panTo(userLocation);
+      map.setZoom(15);
+    }
+  };
+
+  // Toggle map type
+  const toggleMapType = () => {
+    if (map) {
+      const nextType = mapType === 'roadmap' ? 'hybrid' : 
+                      mapType === 'hybrid' ? 'satellite' : 'roadmap';
+      map.setMapTypeId(nextType);
+      setMapType(nextType);
+    }
+  };
+
+  // Get button class based on map type
+  const getButtonClass = () => {
+    return mapType === 'roadmap' ? 'map-control-button' : 'map-control-button light';
+  };
 
   // Render map controls
   const renderMapControls = () => {
     return (
       <div className="map-controls">
         <button 
-          className="map-control-button" 
+          className={getButtonClass()}
           onClick={centerMapOnUser}
           title="Center on my location"
         >
@@ -237,7 +346,17 @@ const MapComponent = () => {
           </svg>
         </button>
         <button 
-          className="map-control-button" 
+          className={getButtonClass()}
+          onClick={toggleMapType}
+          title="Change map type"
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+            <path d="M12 4C7.58 4 4 7.58 4 12s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm0 14.5c-3.58 0-6.5-2.92-6.5-6.5S8.42 5.5 12 5.5s6.5 2.92 6.5 6.5-2.92 6.5-6.5 6.5z"/>
+            <path d="M12 9c-1.66 0-3 1.34-3 3s1.34 3 3 3 3-1.34 3-3-1.34-3-3-3z"/>
+          </svg>
+        </button>
+        <button 
+          className={getButtonClass()}
           onClick={() => map?.setZoom((map?.getZoom() || 10) + 1)}
           title="Zoom in"
         >
@@ -246,7 +365,7 @@ const MapComponent = () => {
           </svg>
         </button>
         <button 
-          className="map-control-button" 
+          className={getButtonClass()}
           onClick={() => map?.setZoom((map?.getZoom() || 10) - 1)}
           title="Zoom out"
         >
@@ -258,32 +377,105 @@ const MapComponent = () => {
     );
   };
 
+  // Circle styling
+  const circleOptions = {
+    fillColor: '#0d2e13',
+    fillOpacity: 0.45,
+    strokeColor: '#00e676',
+    strokeOpacity: 1,
+    strokeWeight: 3,
+    clickable: false,
+    editable: false,
+    zIndex: 2,
+  };
+
+  // Clean up event listeners and animations when component unmounts
+  useEffect(() => {
+    return () => {
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+      }
+      
+      if (map) {
+        google.maps.event.clearListeners(map, 'click');
+      }
+    };
+  }, [map]);
+
   if (!isLoaded) {
     return <div className="loading">Loading map...</div>;
   }
 
+  if (loadError) {
+    return (
+      <div className="dashboard-error">
+        Error loading Google Maps: {loadError.message}
+      </div>
+    );
+  }
+
   return (
-    <div className="dashboard-map-container">
+    <div className="dashboard-map-container" ref={mapContainerRef}>
       <GoogleMap
         mapContainerClassName="google-map"
         center={center}
         zoom={13}
-        options={defaultOptions}
+        options={{
+          ...defaultOptions,
+          mapTypeId: mapType,
+        }}
         onLoad={onMapLoad}
         onUnmount={onUnmount}
       >
+        {/* User location marker */}
         {userLocation && (
           <Marker
             position={userLocation}
             icon={userMarkerIcon}
-            animation={window.google?.maps.Animation.DROP}
-            ref={markerRef}
+            title="Your location"
+          />
+        )}
+        
+        {/* Render circle if region is selected */}
+        {selectedRegion && (
+          <Circle
+            center={selectedRegion.center}
+            radius={circleRadius}
+            options={circleOptions}
+          />
+        )}
+        
+        {/* Render resize marker */}
+        {resizeMarker && (
+          <Marker
+            position={resizeMarker}
+            icon={resizeHandleIcon}
+            draggable={true}
+            onDrag={handleResizeMarkerDrag}
+            title="Drag to resize"
           />
         )}
       </GoogleMap>
       
       {isMapLoaded && renderMapControls()}
-      {renderLocationRequest()}
+      
+      {/* Explore button */}
+      {showExploreButton && (
+        <div className="explore-button-container">
+          <button className="explore-button" onClick={handleExplore}>
+            Explore
+          </button>
+        </div>
+      )}
+      
+      {/* Clear region button (optional) */}
+      {selectedRegion && (
+        <div className="clear-region-button-container">
+          <button className="clear-region-button" onClick={handleClearRegion}>
+            Clear
+          </button>
+        </div>
+      )}
     </div>
   );
 };

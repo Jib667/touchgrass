@@ -3,6 +3,7 @@ import { auth, signOutUser, deleteUserAccount } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import MapComponent from './GoogleMap';
+import ErrorBoundary from './ErrorBoundary';
 import '../styles/Dashboard.css';
 
 const Dashboard = () => {
@@ -16,10 +17,9 @@ const Dashboard = () => {
   const [preferencesLoading, setPreferencesLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [selectedRegion, setSelectedRegion] = useState(null);
   const navigate = useNavigate();
   const db = getFirestore();
-
-  // Add an explicit ref for the main content area
   const mainContentRef = useRef(null);
 
   useEffect(() => {
@@ -180,6 +180,26 @@ const Dashboard = () => {
     };
   }, [showProfileDropdown, showSideNav]);
 
+  // Handler for when a region is selected
+  const handleRegionSelect = (regionData) => {
+    console.log("Region selected:", regionData);
+    setSelectedRegion(regionData);
+  };
+  
+  // Handler for explore button click
+  const handleExplore = () => {
+    if (!selectedRegion) return;
+    
+    // TODO: Implement exploration logic
+    console.log("Exploring region:", selectedRegion);
+    
+    // This is where you'd navigate to a new page or fetch data for the selected region
+    alert(`Exploring region centered at ${selectedRegion.center.lat.toFixed(4)}, ${selectedRegion.center.lng.toFixed(4)} with radius ${(selectedRegion.radius/1000).toFixed(2)} km`);
+    
+    // Reset the selection
+    setSelectedRegion(null);
+  };
+
   if (loading) {
     return (
       <div className="dashboard-container">
@@ -330,14 +350,28 @@ const Dashboard = () => {
 
   const renderMainView = () => (
     <main className="dashboard-content">
-      <div className="dashboard-sidebar">
-        <h2>Explore</h2>
-        <p>Discover nearby natural destinations to connect with nature and find your next adventure.</p>
+      <div className="dashboard-map-container">
+        <ErrorBoundary showReset={true}>
+          <MapComponent
+            onRegionSelect={handleRegionSelect}
+          />
+        </ErrorBoundary>
         
-        {/* More content can be added to the sidebar later */}
+        {selectedRegion && (
+          <div className="explore-button-container">
+            <button className="explore-button" onClick={handleExplore}>
+              Explore
+            </button>
+          </div>
+        )}
+        
+        <div className="dashboard-sidebar-overlay">
+          <h2>Explore</h2>
+          <p>Discover nearby natural destinations to connect with nature and find your next adventure.</p>
+          <div className="sidebar-spacer" style={{ flex: 1 }} />
+          <p className="map-instructions">Click anywhere on the map to select a region, then drag the resize marker to adjust.</p>
+        </div>
       </div>
-      
-      <MapComponent />
     </main>
   );
 
