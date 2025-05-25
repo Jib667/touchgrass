@@ -76,15 +76,16 @@
 
 /* Popup Sections */
 .popup-section {
-  padding: 16px 24px;
-  border-bottom: 1px solid rgba(157, 255, 176, 0.1);
+  padding: 20px 24px;
+  border-bottom: none;
 }
 
 .popup-section h3 {
   font-family: var(--primary-font);
   color: var(--mint-green);
-  margin: 0 0 16px;
-  font-size: 1.3rem;
+  text-align: center;
+  margin-bottom: 25px;
+  font-size: 1.5rem;
   font-weight: 600;
 }
 
@@ -492,40 +493,6 @@
   border-color: var(--mint-green);
 }
 
-/* Submission Button */
-.submission-section {
-  text-align: center;
-  padding: 24px;
-  border-bottom: none;
-}
-
-.submit-button {
-  background-color: var(--accent-green);
-  color: white;
-  font-size: 1.1rem;
-  font-weight: 600;
-  padding: 14px 32px;
-  border: none;
-  border-radius: 24px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  text-transform: uppercase;
-  letter-spacing: 1px;
-  font-family: var(--primary-font);
-}
-
-.submit-button:hover {
-  background-color: #41c157;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.25);
-}
-
-.submit-button:active {
-  transform: translateY(0);
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
-}
-
 /* Animations */
 @keyframes fadeIn {
   from {
@@ -613,4 +580,177 @@
     padding: 12px 24px;
     font-size: 1rem;
   }
+}
+
+/* Step Navigation */
+.step-indicator {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  margin: 15px 0;
+  padding: 0 24px;
+}
+
+.step-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: rgba(157, 255, 176, 0.2);
+  transition: all 0.3s ease;
+}
+
+.step-dot.active {
+  background-color: var(--mint-green);
+  transform: scale(1.2);
+  box-shadow: 0 0 10px rgba(157, 255, 176, 0.5);
+}
+
+.step-dot.completed {
+  background-color: rgba(157, 255, 176, 0.6);
+}
+
+.navigation-controls {
+  display: flex;
+  justify-content: space-between;
+  padding: 24px;
+  border-top: 1px solid rgba(157, 255, 176, 0.1);
+}
+
+.nav-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  border-radius: 30px;
+  border: none;
+  background-color: rgba(157, 255, 176, 0.1);
+  color: var(--mint-green);
+  font-family: var(--primary-font);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 8px rgba(157, 255, 176, 0.15);
+  max-width: 140px;
+}
+
+.nav-button:hover {
+  background-color: rgba(157, 255, 176, 0.15);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(157, 255, 176, 0.25);
+}
+
+.nav-button:active {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(157, 255, 176, 0.2);
+}
+
+.nav-button svg {
+  width: 18px;
+  height: 18px;
+}
+
+.prev-button {
+  margin-right: auto;
+}
+
+.next-button {
+  margin-left: auto;
+}
+
+/* When there's only a next button, center it */
+.navigation-controls:has(.next-button:only-child) {
+  justify-content: center;
+}
+
+/* When there's only a submit button, center it */
+.navigation-controls:has(.submit-button:only-child) {
+  justify-content: center;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .navigation-controls {
+    padding: 16px;
+  }
+  
+  .nav-button {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+  }
+}
+
+/* Submit Button */
+.submit-button {
+  background: linear-gradient(45deg, #2d9b3e, #35ad49);
+  color: white;
+  font-size: 1rem;
+  font-weight: 600;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 30px;
+  box-shadow: 0 4px 12px rgba(53, 173, 73, 0.3);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-family: var(--primary-font);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  position: relative;
+  overflow: hidden;
+  max-width: 250px;
+  margin: 0 auto;
+}
+
+.submit-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: 0.5s;
+}
+
+.submit-button:hover {
+  background: linear-gradient(45deg, #248233, #2d9b3e);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 15px rgba(53, 173, 73, 0.4);
+}
+
+.submit-button:hover::before {
+  left: 100%;
+}
+
+.submit-button:active {
+  transform: translateY(-1px);
+  box-shadow: 0 3px 10px rgba(53, 173, 73, 0.3);
+}
+
+.ai-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
+}
+
+.ai-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+.submit-hint {
+  margin-top: 12px;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-style: italic;
+  text-align: center;
 } 

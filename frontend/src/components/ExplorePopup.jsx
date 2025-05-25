@@ -506,6 +506,10 @@ const ExplorePopup = ({ region, onClose, onSubmit }) => {
   const [selectedActivities, setSelectedActivities] = useState([]);
   const [customActivity, setCustomActivity] = useState('');
   
+  // Step navigation state
+  const [currentStep, setCurrentStep] = useState(1);
+  const totalSteps = tripType === 'custom' ? 3 : 2;
+  
   // Ref for the popup content
   const popupRef = useRef(null);
   
@@ -522,6 +526,19 @@ const ExplorePopup = ({ region, onClose, onSubmit }) => {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, [onClose]);
+  
+  // Navigation handlers
+  const goToNextStep = () => {
+    if (currentStep < totalSteps) {
+      setCurrentStep(currentStep + 1);
+    }
+  };
+  
+  const goToPreviousStep = () => {
+    if (currentStep > 1) {
+      setCurrentStep(currentStep - 1);
+    }
+  };
   
   // Handlers for time changes
   const handleStartHourChange = (hour) => {
@@ -581,6 +598,59 @@ const ExplorePopup = ({ region, onClose, onSubmit }) => {
     onSubmit(formData);
   };
   
+  // Render step content based on currentStep
+  const renderStepContent = () => {
+    switch(currentStep) {
+      case 1:
+        return (
+          <div className="popup-section">
+            <h3>Select Time Duration</h3>
+            <TimeSelector
+              startTime={startTime}
+              endTime={endTime}
+              onStartTimeChange={{
+                hour: handleStartHourChange,
+                minute: handleStartMinuteChange
+              }}
+              onEndTimeChange={{
+                hour: handleEndHourChange,
+                minute: handleEndMinuteChange
+              }}
+            />
+          </div>
+        );
+      case 2:
+        return (
+          <div className="popup-section">
+            <h3>Choose Trip Type</h3>
+            <TripTypeSelector 
+              tripType={tripType} 
+              onTripTypeChange={handleTripTypeChange}
+              surpriseType={surpriseType}
+              onSurpriseTypeChange={handleSurpriseTypeChange}
+            />
+          </div>
+        );
+      case 3:
+        return (
+          <div className="popup-section">
+            <h3>What Do You Want To Do?</h3>
+            <p className="section-hint">Select all that apply</p>
+            <ActivitySelector 
+              selectedActivities={selectedActivities}
+              onActivityToggle={handleActivityToggle}
+              customActivity={customActivity}
+              onCustomActivityChange={handleCustomActivityChange}
+              tripPreference={tripType}
+              onTripPreferenceChange={handleTripTypeChange}
+            />
+          </div>
+        );
+      default:
+        return null;
+    }
+  };
+
   return (
     <div className="explore-popup-overlay">
       <div className="explore-popup" ref={popupRef}>
@@ -593,52 +663,55 @@ const ExplorePopup = ({ region, onClose, onSubmit }) => {
           </p>
         )}
         
-        <div className="popup-section">
-          <h3>1. Select Time Duration</h3>
-          <TimeSelector
-            startTime={startTime}
-            endTime={endTime}
-            onStartTimeChange={{
-              hour: handleStartHourChange,
-              minute: handleStartMinuteChange
-            }}
-            onEndTimeChange={{
-              hour: handleEndHourChange,
-              minute: handleEndMinuteChange
-            }}
-          />
-        </div>
-        
-        <div className="popup-section">
-          <h3>2. Choose Trip Type</h3>
-          <TripTypeSelector 
-            tripType={tripType} 
-            onTripTypeChange={handleTripTypeChange}
-            surpriseType={surpriseType}
-            onSurpriseTypeChange={handleSurpriseTypeChange}
-          />
-        </div>
-        
-        {tripType === 'custom' && (
-          <div className="popup-section">
-            <h3>3. What Do You Want To Do?</h3>
-            <p className="section-hint">Select all that apply</p>
-            <ActivitySelector 
-              selectedActivities={selectedActivities}
-              onActivityToggle={handleActivityToggle}
-              customActivity={customActivity}
-              onCustomActivityChange={handleCustomActivityChange}
-              tripPreference={tripType}
-              onTripPreferenceChange={handleTripTypeChange}
+        <div className="step-indicator">
+          {Array.from({length: totalSteps}, (_, i) => (
+            <div 
+              key={i + 1} 
+              className={`step-dot ${currentStep === i + 1 ? 'active' : ''} ${currentStep > i + 1 ? 'completed' : ''}`}
             />
-          </div>
-        )}
-        
-        <div className="popup-section submission-section">
-          <button className="submit-button" onClick={handleSubmit}>
-            Create My TouchGrass
-          </button>
+          ))}
         </div>
+        
+        {renderStepContent()}
+        
+        <div className="navigation-controls">
+          {currentStep > 1 && (
+            <button 
+              className="nav-button prev-button" 
+              onClick={goToPreviousStep}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
+              </svg>
+              Previous
+            </button>
+          )}
+          
+          {currentStep < totalSteps ? (
+            <button 
+              className="nav-button next-button" 
+              onClick={goToNextStep}
+            >
+              Next
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
+              </svg>
+            </button>
+          ) : (
+            <button className="submit-button" onClick={handleSubmit}>
+              <span className="ai-icon">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                  <path d="M21 10.975V8a2 2 0 0 0-2-2h-6V4.688c.305-.274.5-.668.5-1.11a1.5 1.5 0 0 0-3 0c0 .442.195.836.5 1.11V6H5a2 2 0 0 0-2 2v2.975A3.5 3.5 0 0 0 2 13.5a3.5 3.5 0 0 0 1 2.45V19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3.05a3.5 3.5 0 0 0 1-2.45 3.5 3.5 0 0 0-1-2.525zM5 13.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0zm7 6a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm7-6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm-7 2a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
+                </svg>
+              </span>
+              Create Plan
+            </button>
+          )}
+        </div>
+        
+        {currentStep === totalSteps && (
+          <p className="submit-hint">AI will generate a personalized itinerary based on your selections</p>
+        )}
       </div>
     </div>
   );
