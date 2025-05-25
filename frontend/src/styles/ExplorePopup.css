@@ -610,8 +610,10 @@
 }
 
 .navigation-controls {
+  position: relative;
   display: flex;
   justify-content: space-between;
+  align-items: center;
   padding: 24px;
   border-top: 1px solid rgba(157, 255, 176, 0.1);
 }
@@ -622,27 +624,19 @@
   gap: 8px;
   padding: 10px 20px;
   border-radius: 30px;
-  border: none;
-  background-color: rgba(157, 255, 176, 0.1);
+  border: 1px solid rgba(157, 255, 176, 0.3);
+  background-color: rgba(157, 255, 176, 0.05);
   color: var(--mint-green);
   font-family: var(--primary-font);
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
-  box-shadow: 0 2px 8px rgba(157, 255, 176, 0.15);
-  max-width: 140px;
 }
 
 .nav-button:hover {
-  background-color: rgba(157, 255, 176, 0.15);
+  background-color: rgba(157, 255, 176, 0.1);
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(157, 255, 176, 0.25);
-}
-
-.nav-button:active {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(157, 255, 176, 0.2);
 }
 
 .nav-button svg {
@@ -658,40 +652,23 @@
   margin-left: auto;
 }
 
-/* When there's only a next button, center it */
-.navigation-controls:has(.next-button:only-child) {
-  justify-content: center;
-}
-
-/* When there's only a submit button, center it */
-.navigation-controls:has(.submit-button:only-child) {
-  justify-content: center;
-}
-
-/* Responsive adjustments */
-@media (max-width: 600px) {
-  .navigation-controls {
-    padding: 16px;
-  }
-  
-  .nav-button {
-    padding: 8px 16px;
-    font-size: 0.9rem;
-  }
+/* When we have previous button, adjust layout */
+.navigation-controls:has(.prev-button) {
+  justify-content: space-between;
 }
 
 /* Submit Button */
 .submit-button {
   background: linear-gradient(45deg, #2d9b3e, #35ad49);
   color: white;
-  font-size: 1rem;
+  font-size: 1.2rem;
   font-weight: 600;
-  padding: 12px 24px;
+  padding: 16px 36px;
   border: none;
-  border-radius: 30px;
-  box-shadow: 0 4px 12px rgba(53, 173, 73, 0.3);
+  border-radius: 40px;
+  box-shadow: 0 6px 20px rgba(53, 173, 73, 0.4);
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s ease;
   text-transform: uppercase;
   letter-spacing: 1px;
   font-family: var(--primary-font);
@@ -701,8 +678,6 @@
   gap: 10px;
   position: relative;
   overflow: hidden;
-  max-width: 250px;
-  margin: 0 auto;
 }
 
 .submit-button::before {
@@ -718,8 +693,8 @@
 
 .submit-button:hover {
   background: linear-gradient(45deg, #248233, #2d9b3e);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 15px rgba(53, 173, 73, 0.4);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(53, 173, 73, 0.5);
 }
 
 .submit-button:hover::before {
@@ -728,7 +703,7 @@
 
 .submit-button:active {
   transform: translateY(-1px);
-  box-shadow: 0 3px 10px rgba(53, 173, 73, 0.3);
+  box-shadow: 0 4px 15px rgba(53, 173, 73, 0.4);
 }
 
 .ai-icon {
@@ -737,9 +712,9 @@
   justify-content: center;
   background-color: rgba(255, 255, 255, 0.2);
   border-radius: 50%;
-  width: 24px;
-  height: 24px;
-  padding: 4px;
+  width: 32px;
+  height: 32px;
+  padding: 6px;
 }
 
 .ai-icon svg {
@@ -753,4 +728,67 @@
   color: rgba(255, 255, 255, 0.7);
   font-style: italic;
   text-align: center;
+}
+
+/* Create Plan Button - styled like nav buttons but wider and centered */
+.create-plan-button {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 24px;
+  border-radius: 30px;
+  border: 1px solid rgba(157, 255, 176, 0.3);
+  background-color: rgba(157, 255, 176, 0.1);
+  color: var(--mint-green);
+  font-family: var(--primary-font);
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  width: 200px;
+}
+
+.create-plan-button:hover {
+  background-color: rgba(157, 255, 176, 0.15);
+}
+
+.create-plan-button:active {
+  background-color: rgba(157, 255, 176, 0.2);
+}
+
+.create-plan-button .ai-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(255, 255, 255, 0.2);
+  border-radius: 50%;
+  width: 18px;
+  height: 18px;
+  padding: 3px;
+}
+
+.create-plan-button .ai-icon svg {
+  width: 100%;
+  height: 100%;
+}
+
+/* Responsive adjustments */
+@media (max-width: 600px) {
+  .navigation-controls {
+    padding: 16px;
+  }
+  
+  .nav-button {
+    padding: 8px 16px;
+    font-size: 0.9rem;
+  }
+}
+
+/* New CSS rule */
+.navigation-controls:has(.create-plan-button):not(:has(.prev-button)) {
+  transform: translateX(-70%);
 } 

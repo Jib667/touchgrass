@@ -698,7 +698,7 @@ const ExplorePopup = ({ region, onClose, onSubmit }) => {
               </svg>
             </button>
           ) : (
-            <button className="submit-button" onClick={handleSubmit}>
+            <button className="create-plan-button" onClick={handleSubmit}>
               <span className="ai-icon">
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
                   <path d="M21 10.975V8a2 2 0 0 0-2-2h-6V4.688c.305-.274.5-.668.5-1.11a1.5 1.5 0 0 0-3 0c0 .442.195.836.5 1.11V6H5a2 2 0 0 0-2 2v2.975A3.5 3.5 0 0 0 2 13.5a3.5 3.5 0 0 0 1 2.45V19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3.05a3.5 3.5 0 0 0 1-2.45 3.5 3.5 0 0 0-1-2.525zM5 13.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0zm7 6a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm7-6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm-7 2a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
@@ -710,7 +710,7 @@ const ExplorePopup = ({ region, onClose, onSubmit }) => {
         </div>
         
         {currentStep === totalSteps && (
-          <p className="submit-hint">AI will generate a personalized itinerary based on your selections</p>
+          <p className="submit-hint"></p>
         )}
       </div>
     </div>
