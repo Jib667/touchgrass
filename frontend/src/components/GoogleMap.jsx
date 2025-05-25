@@ -1,8 +1,8 @@
 import { useState, useCallback, useRef, useEffect } from 'react';
-import { GoogleMap, useJsApiLoader, Circle, Marker } from '@react-google-maps/api';
+import { GoogleMap, useJsApiLoader, Circle, Polygon, Marker } from '@react-google-maps/api';
 
 // Define libraries as a constant outside the component to prevent reloading issues
-const libraries = ['places', 'geometry'];
+const libraries = ['places', 'geometry', 'drawing'];
 
 // Default to Burke, Virginia
 const defaultCenter = {
@@ -91,18 +91,30 @@ const defaultOptions = {
   ]
 };
 
-const MapComponent = ({ onRegionSelect }) => {
+const MapComponent = ({ onRegionSelect, drawingMode: externalDrawingMode }) => {
   const [map, setMap] = useState(null);
   const [center, setCenter] = useState(defaultCenter);
   const [userLocation, setUserLocation] = useState(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
   const [mapType, setMapType] = useState('hybrid'); // Start with satellite + labels
+  
+  // Region selection state
   const [selectedRegion, setSelectedRegion] = useState(null);
   const [circleRadius, setCircleRadius] = useState(0);
   const [resizeMarker, setResizeMarker] = useState(null);
   const [showExploreButton, setShowExploreButton] = useState(false);
+  
+  // Polygon drawing state
+  const [drawingMode, setDrawingMode] = useState(null); // null, 'circle', or 'polygon'
+  const [polygonPath, setPolygonPath] = useState([]);
+  const [drawingManager, setDrawingManager] = useState(null);
+  
+  // Instructions state
+  const [showInstructions, setShowInstructions] = useState(false);
+  
   const animationRef = useRef(null);
   const mapContainerRef = useRef(null);
+  const instructionsTimeoutRef = useRef(null);
   
   // Custom marker icon
   const userMarkerIcon = {
@@ -158,6 +170,42 @@ const MapComponent = ({ onRegionSelect }) => {
     }
   }, []);
 
+  // Sync drawing mode with external prop
+  useEffect(() => {
+    if (externalDrawingMode !== drawingMode) {
+      setDrawingMode(externalDrawingMode);
+      
+      // If switching to polygon mode, activate drawing manager
+      if (externalDrawingMode === 'polygon' && drawingManager) {
+        drawingManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+      } 
+      // If switching to circle mode or turning off drawing, deactivate drawing manager
+      else if (drawingManager) {
+        drawingManager.setDrawingMode(null);
+      }
+      
+      // Clear any existing region when changing modes
+      handleClearRegion();
+      
+      // Show instructions when drawing mode changes
+      if (externalDrawingMode) {
+        setShowInstructions(true);
+        
+        // Clear any existing timeout
+        if (instructionsTimeoutRef.current) {
+          clearTimeout(instructionsTimeoutRef.current);
+        }
+        
+        // Hide instructions after 5 seconds
+        instructionsTimeoutRef.current = setTimeout(() => {
+          setShowInstructions(false);
+        }, 5000);
+      } else {
+        setShowInstructions(false);
+      }
+    }
+  }, [externalDrawingMode]);
+
   // Map initialization
   const onMapLoad = useCallback(map => {
     setMap(map);
@@ -166,8 +214,32 @@ const MapComponent = ({ onRegionSelect }) => {
     // Set to hybrid view
     map.setMapTypeId('hybrid');
     
-    // Add click listener to create circles
+    // Add click listener for circle creation
     map.addListener('click', handleMapClick);
+    
+    // Initialize drawing manager for polygon drawing
+    if (window.google && window.google.maps && window.google.maps.drawing) {
+      const drawingMgr = new window.google.maps.drawing.DrawingManager({
+        drawingMode: null,
+        drawingControl: false,
+        polygonOptions: {
+          fillColor: '#0d2e13',
+          fillOpacity: 0.45,
+          strokeColor: '#00e676',
+          strokeOpacity: 1,
+          strokeWeight: 3,
+          clickable: true,
+          editable: true,
+          zIndex: 1
+        }
+      });
+      
+      drawingMgr.setMap(map);
+      setDrawingManager(drawingMgr);
+      
+      // Add listener for polygon complete
+      window.google.maps.event.addListener(drawingMgr, 'polygoncomplete', handlePolygonComplete);
+    }
   }, []);
 
   const onUnmount = useCallback(() => {
@@ -180,6 +252,9 @@ const MapComponent = ({ onRegionSelect }) => {
   
   // Handle map click to create a circle
   const handleMapClick = (e) => {
+    // Only create circle if in circle mode or no specific mode is set
+    if (drawingMode === 'polygon') return;
+    
     // If already have a region, don't create a new one
     if (selectedRegion) {
       // Clear existing region first
@@ -200,6 +275,7 @@ const MapComponent = ({ onRegionSelect }) => {
     };
     
     setSelectedRegion({
+      type: 'circle',
       center: center
     });
     
@@ -260,6 +336,15 @@ const MapComponent = ({ onRegionSelect }) => {
         
         // Show the explore button
         setShowExploreButton(true);
+        
+        // Notify parent component
+        if (onRegionSelect) {
+          onRegionSelect({
+            type: 'circle',
+            center: center,
+            radius: currentRadius
+          });
+        }
       }
     };
     
@@ -267,9 +352,53 @@ const MapComponent = ({ onRegionSelect }) => {
     animationRef.current = requestAnimationFrame(animateCircle);
   };
 
+  // Handler for polygon complete event
+  const handlePolygonComplete = (polygon) => {
+    // Exit drawing mode
+    if (drawingManager) {
+      drawingManager.setDrawingMode(null);
+    }
+    setDrawingMode(null);
+    
+    // Get polygon path
+    const path = polygon.getPath();
+    const pathArray = [];
+    
+    for (let i = 0; i < path.getLength(); i++) {
+      const point = path.getAt(i);
+      pathArray.push({
+        lat: point.lat(),
+        lng: point.lng()
+      });
+    }
+    
+    // Store the polygon path
+    setPolygonPath(pathArray);
+    
+    // Set selected region
+    setSelectedRegion({
+      type: 'polygon',
+      path: pathArray
+    });
+    
+    // Show explore button
+    setShowExploreButton(true);
+    
+    // Notify parent component
+    if (onRegionSelect) {
+      onRegionSelect({
+        type: 'polygon',
+        path: pathArray
+      });
+    }
+    
+    // Remove the polygon from the map as we'll render our own
+    polygon.setMap(null);
+  };
+
   // Handler for resize marker drag
   const handleResizeMarkerDrag = (e) => {
-    if (!selectedRegion) return;
+    if (!selectedRegion || selectedRegion.type !== 'circle') return;
     
     const newPosition = { lat: e.latLng.lat(), lng: e.latLng.lng() };
     setResizeMarker(newPosition);
@@ -282,7 +411,17 @@ const MapComponent = ({ onRegionSelect }) => {
     
     // Set minimum radius
     const minRadius = 50;
-    setCircleRadius(Math.max(newRadius, minRadius));
+    const radius = Math.max(newRadius, minRadius);
+    setCircleRadius(radius);
+    
+    // Update parent component
+    if (onRegionSelect) {
+      onRegionSelect({
+        type: 'circle',
+        center: center,
+        radius: radius
+      });
+    }
   };
 
   // Clear the selected region
@@ -291,21 +430,39 @@ const MapComponent = ({ onRegionSelect }) => {
     setCircleRadius(0);
     setResizeMarker(null);
     setShowExploreButton(false);
+    setPolygonPath([]);
+    
+    // Notify parent component
+    if (onRegionSelect) {
+      onRegionSelect(null);
+    }
   };
   
-  // Handle explore button click
-  const handleExplore = () => {
-    if (!selectedRegion || !circleRadius) return;
+  // Start drawing a polygon
+  const startPolygonDrawing = () => {
+    if (!drawingManager || !map) return;
     
-    // Create region data to pass to parent
-    const regionData = {
-      center: selectedRegion.center,
-      radius: circleRadius
-    };
+    // Clear any existing regions
+    handleClearRegion();
     
-    // Call the callback from parent component
-    if (onRegionSelect) {
-      onRegionSelect(regionData);
+    // Set drawing mode
+    setDrawingMode('polygon');
+    drawingManager.setDrawingMode(google.maps.drawing.OverlayType.POLYGON);
+  };
+  
+  // Start drawing a circle (by clicking)
+  const startCircleDrawing = () => {
+    if (!map) return;
+    
+    // Clear any existing regions
+    handleClearRegion();
+    
+    // Set drawing mode
+    setDrawingMode('circle');
+    
+    // If using drawing manager, disable it
+    if (drawingManager) {
+      drawingManager.setDrawingMode(null);
     }
   };
 
@@ -388,10 +545,26 @@ const MapComponent = ({ onRegionSelect }) => {
     editable: false,
     zIndex: 2,
   };
+  
+  // Polygon styling
+  const polygonOptions = {
+    fillColor: '#0d2e13',
+    fillOpacity: 0.45,
+    strokeColor: '#00e676',
+    strokeOpacity: 1,
+    strokeWeight: 3,
+    clickable: false,
+    editable: false,
+    zIndex: 2,
+  };
 
-  // Clean up event listeners and animations when component unmounts
+  // Clean up timeouts on unmount
   useEffect(() => {
     return () => {
+      if (instructionsTimeoutRef.current) {
+        clearTimeout(instructionsTimeoutRef.current);
+      }
+      
       if (animationRef.current) {
         cancelAnimationFrame(animationRef.current);
       }
@@ -437,7 +610,7 @@ const MapComponent = ({ onRegionSelect }) => {
         )}
         
         {/* Render circle if region is selected */}
-        {selectedRegion && (
+        {selectedRegion && selectedRegion.type === 'circle' && (
           <Circle
             center={selectedRegion.center}
             radius={circleRadius}
@@ -445,8 +618,16 @@ const MapComponent = ({ onRegionSelect }) => {
           />
         )}
         
-        {/* Render resize marker */}
-        {resizeMarker && (
+        {/* Render polygon if one is drawn */}
+        {selectedRegion && selectedRegion.type === 'polygon' && polygonPath.length > 0 && (
+          <Polygon
+            paths={polygonPath}
+            options={polygonOptions}
+          />
+        )}
+        
+        {/* Render resize marker for circle */}
+        {resizeMarker && selectedRegion && selectedRegion.type === 'circle' && (
           <Marker
             position={resizeMarker}
             icon={resizeHandleIcon}
@@ -462,18 +643,32 @@ const MapComponent = ({ onRegionSelect }) => {
       {/* Explore button */}
       {showExploreButton && (
         <div className="explore-button-container">
-          <button className="explore-button" onClick={handleExplore}>
+          <button className="explore-button" onClick={() => onRegionSelect && onRegionSelect(selectedRegion)}>
             Explore
           </button>
         </div>
       )}
       
-      {/* Clear region button (optional) */}
+      {/* Clear region button */}
       {selectedRegion && (
         <div className="clear-region-button-container">
           <button className="clear-region-button" onClick={handleClearRegion}>
             Clear
           </button>
+        </div>
+      )}
+      
+      {/* Drawing instructions with temporary display */}
+      {showInstructions && drawingMode === 'polygon' && (
+        <div className="drawing-instructions">
+          <p>Click on the map to add points. Complete the shape by clicking the first point again.</p>
+        </div>
+      )}
+      
+      {/* Drawing instructions for circle mode */}
+      {showInstructions && drawingMode === 'circle' && (
+        <div className="drawing-instructions">
+          <p>Click on the map to create a circle, then drag the handle to adjust the radius.</p>
         </div>
       )}
     </div>

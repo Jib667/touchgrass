@@ -3,6 +3,7 @@ import { auth, signOutUser, deleteUserAccount } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import MapComponent from './GoogleMap';
+import ExplorePopup from './ExplorePopup';
 import ErrorBoundary from './ErrorBoundary';
 import '../styles/Dashboard.css';
 
@@ -18,6 +19,8 @@ const Dashboard = () => {
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [selectedRegion, setSelectedRegion] = useState(null);
+  const [drawingMode, setDrawingMode] = useState(null); // null, 'circle', or 'polygon'
+  const [showExplorePopup, setShowExplorePopup] = useState(false);
   const navigate = useNavigate();
   const db = getFirestore();
   const mainContentRef = useRef(null);
@@ -190,13 +193,37 @@ const Dashboard = () => {
   const handleExplore = () => {
     if (!selectedRegion) return;
     
-    // TODO: Implement exploration logic
-    console.log("Exploring region:", selectedRegion);
+    // Show the explore popup instead of an alert
+    setShowExplorePopup(true);
+  };
+
+  // Handler for closing the explore popup
+  const handleCloseExplorePopup = () => {
+    setShowExplorePopup(false);
+  };
+
+  // Handler for submitting the explore form
+  const handleExploreSubmit = (formData) => {
+    console.log("Explore form submitted:", formData);
     
-    // This is where you'd navigate to a new page or fetch data for the selected region
-    alert(`Exploring region centered at ${selectedRegion.center.lat.toFixed(4)}, ${selectedRegion.center.lng.toFixed(4)} with radius ${(selectedRegion.radius/1000).toFixed(2)} km`);
+    // TODO: Process the form data and generate an itinerary
+    // This will be implemented in a future phase
+    
+    // For now, just show an alert with the data
+    alert(`Your TouchGrass adventure is being created!\nSelected time: ${formData.timeRange.start} - ${formData.timeRange.end}\nActivities: ${formData.activities.join(', ')}\n${formData.customActivity ? `Custom: ${formData.customActivity}` : ''}`);
+    
+    // Close the popup
+    setShowExplorePopup(false);
     
     // Reset the selection
+    setSelectedRegion(null);
+    setDrawingMode(null);
+  };
+
+  // Set drawing mode
+  const handleSetDrawingMode = (mode) => {
+    setDrawingMode(mode);
+    // Clear existing region when changing drawing mode
     setSelectedRegion(null);
   };
 
@@ -354,6 +381,7 @@ const Dashboard = () => {
         <ErrorBoundary showReset={true}>
           <MapComponent
             onRegionSelect={handleRegionSelect}
+            drawingMode={drawingMode}
           />
         </ErrorBoundary>
         
@@ -369,7 +397,32 @@ const Dashboard = () => {
           <h2>Explore</h2>
           <p>Discover nearby natural destinations to connect with nature and find your next adventure.</p>
           <div className="sidebar-spacer" style={{ flex: 1 }} />
-          <p className="map-instructions">Click anywhere on the map to select a region, then drag the resize marker to adjust.</p>
+          
+          <div className="drawing-tools-panel">
+            <div className="drawing-tool-container" onClick={() => handleSetDrawingMode('circle')}>
+              <button className={`drawing-tool-button ${drawingMode === 'circle' ? 'active' : ''}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"/>
+                  <circle cx="12" cy="12" r="5" fill="currentColor" fillOpacity="0.4"/>
+                </svg>
+                <span>Circle</span>
+              </button>
+            </div>
+            <div className="drawing-tool-container" onClick={() => handleSetDrawingMode('polygon')}>
+              <button className={`drawing-tool-button ${drawingMode === 'polygon' ? 'active' : ''}`}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="22" height="22" fill="currentColor">
+                  <path d="M12 2L4 12l8 10 8-10z" fillOpacity="0.4"/>
+                  <path d="M12 2L4 12l8 10 8-10L12 2zm0 2.83L18.17 12 12 19.17 5.83 12 12 4.83z"/>
+                  <circle cx="12" cy="12" r="1.5" fill="currentColor"/>
+                  <circle cx="12" cy="4.5" r="1.5" fill="currentColor"/>
+                  <circle cx="19.5" cy="12" r="1.5" fill="currentColor"/>
+                  <circle cx="12" cy="19.5" r="1.5" fill="currentColor"/>
+                  <circle cx="4.5" cy="12" r="1.5" fill="currentColor"/>
+                </svg>
+                <span>Custom</span>
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </main>
@@ -507,6 +560,15 @@ const Dashboard = () => {
       
       {/* Success modal after account deletion */}
       {showSuccessModal && renderSuccessModal()}
+      
+      {/* Explore popup */}
+      {showExplorePopup && selectedRegion && (
+        <ExplorePopup 
+          region={selectedRegion}
+          onClose={handleCloseExplorePopup}
+          onSubmit={handleExploreSubmit}
+        />
+      )}
     </div>
   );
 };
