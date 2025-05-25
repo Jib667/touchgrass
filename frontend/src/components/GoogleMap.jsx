@@ -1,8 +1,8 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect, forwardRef, useImperativeHandle } from 'react';
 import { GoogleMap, useJsApiLoader, Circle, Polygon, Marker } from '@react-google-maps/api';
 
 // Define libraries as a constant outside the component to prevent reloading issues
-const libraries = ['places', 'geometry', 'drawing'];
+const libraries = ['places', 'geometry', 'drawing', 'marker'];
 
 // Default to Burke, Virginia
 const defaultCenter = {
@@ -91,7 +91,7 @@ const defaultOptions = {
   ]
 };
 
-const MapComponent = ({ onRegionSelect, drawingMode: externalDrawingMode }) => {
+const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingMode, onLoadStateChange }, ref) => {
   const [map, setMap] = useState(null);
   const [center, setCenter] = useState(defaultCenter);
   const [userLocation, setUserLocation] = useState(null);
@@ -145,6 +145,18 @@ const MapComponent = ({ onRegionSelect, drawingMode: externalDrawingMode }) => {
     libraries: libraries
   });
 
+  useEffect(() => {
+    if (loadError) {
+      console.error("Google Maps API Load Error:", loadError);
+    }
+    if (isLoaded) {
+      console.log("Google Maps API Loaded Successfully.");
+    }
+    if (onLoadStateChange) {
+      onLoadStateChange({ isLoaded, loadError });
+    }
+  }, [isLoaded, loadError, onLoadStateChange]);
+
   // Update refs when state changes
   useEffect(() => {
     // Get user location when component mounts
@@ -184,8 +196,10 @@ const MapComponent = ({ onRegionSelect, drawingMode: externalDrawingMode }) => {
         drawingManager.setDrawingMode(null);
       }
       
-      // Clear any existing region when changing modes
-      handleClearRegion();
+      // Only clear existing region when switching to a different drawing mode, not when turning off drawing
+      if (externalDrawingMode !== null) {
+        handleClearRegion();
+      }
       
       // Show instructions when drawing mode changes
       if (externalDrawingMode) {
@@ -204,7 +218,7 @@ const MapComponent = ({ onRegionSelect, drawingMode: externalDrawingMode }) => {
         setShowInstructions(false);
       }
     }
-  }, [externalDrawingMode]);
+  }, [externalDrawingMode, drawingManager]);
 
   // Map initialization
   const onMapLoad = useCallback(map => {
@@ -575,6 +589,26 @@ const MapComponent = ({ onRegionSelect, drawingMode: externalDrawingMode }) => {
     };
   }, [map]);
 
+  // Add useImperativeHandle to expose methods to parent component
+  useImperativeHandle(ref, () => ({
+    // Add a method to get the Google Map instance
+    getMap: () => map,
+    
+    // Add a method to pan to a location
+    panTo: (location) => {
+      if (map) {
+        map.panTo(location);
+      }
+    },
+    
+    // Add a method to set zoom level
+    setZoom: (zoomLevel) => {
+      if (map) {
+        map.setZoom(zoomLevel);
+      }
+    }
+  }), [map]);
+
   if (!isLoaded) {
     return <div className="loading">Loading map...</div>;
   }
@@ -673,6 +707,9 @@ const MapComponent = ({ onRegionSelect, drawingMode: externalDrawingMode }) => {
       )}
     </div>
   );
-};
+});
+
+// Make sure to export the component with a proper display name
+MapComponent.displayName = 'MapComponent';
 
 export default MapComponent; 

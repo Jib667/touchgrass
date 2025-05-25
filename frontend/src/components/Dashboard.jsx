@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { auth, signOutUser, deleteUserAccount } from '../firebase';
 import { useNavigate } from 'react-router-dom';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
@@ -21,9 +21,38 @@ const Dashboard = () => {
   const [selectedRegion, setSelectedRegion] = useState(null);
   const [drawingMode, setDrawingMode] = useState(null); // null, 'circle', or 'polygon'
   const [showExplorePopup, setShowExplorePopup] = useState(false);
+  const [mapScriptLoaded, setMapScriptLoaded] = useState(false);
+  const [mapLoadError, setMapLoadError] = useState(null);
+  const [selectedPlace, setSelectedPlace] = useState(null);
+  const [confirmedRegion, setConfirmedRegion] = useState(null);
+  const [showConfirmHint, setShowConfirmHint] = useState(false);
+  const [popularPlaces, setPopularPlaces] = useState([]);
+  const [loadingPlaces, setLoadingPlaces] = useState(false);
+  const [placesApiError, setPlacesApiError] = useState(false);
   const navigate = useNavigate();
   const db = getFirestore();
   const mainContentRef = useRef(null);
+  const mapRef = useRef(null);
+
+  // New state for autocomplete
+  const [autocompleteValue, setAutocompleteValue] = useState("");
+  const [autocompleteSuggestions, setAutocompleteSuggestions] = useState([]);
+  const [autocompleteLoading, setAutocompleteLoading] = useState(false);
+  const [autocompleteError, setAutocompleteError] = useState(null);
+
+  const handleMapLoadStateChange = useCallback(({ isLoaded, loadError }) => {
+    setMapScriptLoaded(isLoaded);
+    setMapLoadError(loadError);
+    if (isLoaded && !loadError) {
+      // init();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (mapLoadError) {
+      console.error("Dashboard: Map Load Error reported from MapComponent:", mapLoadError);
+    }
+  }, [mapLoadError]);
 
   useEffect(() => {
     console.log("Dashboard mounted, checking user status");
@@ -187,6 +216,9 @@ const Dashboard = () => {
   const handleRegionSelect = (regionData) => {
     console.log("Region selected:", regionData);
     setSelectedRegion(regionData);
+    // Show a temporary message about pressing Enter to confirm
+    setShowConfirmHint(true);
+    setTimeout(() => setShowConfirmHint(false), 5000);
   };
   
   // Handler for explore button click
@@ -220,11 +252,309 @@ const Dashboard = () => {
     setDrawingMode(null);
   };
 
+  // Add this effect to search for popular places when region is confirmed
+  useEffect(() => {
+    if (!confirmedRegion || !mapScriptLoaded) {
+      console.log("Cannot search for places yet. Missing requirements:", {
+        confirmedRegion: !!confirmedRegion,
+        mapScriptLoaded: !!mapScriptLoaded
+      });
+      return;
+    }
+    setLoadingPlaces(true);
+    setPlacesApiError(false);
+
+    const fetchPopularPlacesREST = async ({ lat, lng, radius }) => {
+      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+      const url = `https://places.googleapis.com/v1/places:searchNearby?key=${apiKey}`;
+      const body = {
+        includedTypes: ["tourist_attraction", "park"],
+        maxResultCount: 5,
+        locationRestriction: {
+          circle: {
+            center: { latitude: lat, longitude: lng },
+            radius: radius
+          }
+        }
+      };
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-FieldMask": "places.displayName,places.rating,places.userRatingCount"
+          },
+          body: JSON.stringify(body)
+        });
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error('Places API error response:', errorText);
+          throw new Error("Places API error: " + errorText);
+        }
+        const data = await response.json();
+        return data.places || [];
+      } catch (error) {
+        throw error;
+      }
+    };
+
+    const getRegionCenterAndRadius = (region) => {
+      if (region.type === 'circle') {
+        return {
+          lat: region.center.lat,
+          lng: region.center.lng,
+          radius: region.radius
+        };
+      } else if (region.type === 'polygon') {
+        const bounds = new window.google.maps.LatLngBounds();
+        region.path.forEach(point => bounds.extend(point));
+        const center = bounds.getCenter();
+        const ne = bounds.getNorthEast();
+        const radius = window.google.maps.geometry.spherical.computeDistanceBetween(center, ne);
+        return {
+          lat: center.lat(),
+          lng: center.lng(),
+          radius: radius
+        };
+      }
+      return null;
+    };
+
+    const fetchPopularPlaces = async () => {
+      try {
+        const regionInfo = getRegionCenterAndRadius(confirmedRegion);
+        if (!regionInfo) throw new Error("Invalid region info");
+        const places = await fetchPopularPlacesREST(regionInfo);
+        setPopularPlaces(places);
+        setLoadingPlaces(false);
+      } catch (error) {
+        console.error("Error fetching popular places (REST):", error);
+        setPlacesApiError(true);
+        setLoadingPlaces(false);
+      }
+    };
+
+    fetchPopularPlaces();
+  }, [confirmedRegion, mapScriptLoaded]);
+
   // Set drawing mode
   const handleSetDrawingMode = (mode) => {
     setDrawingMode(mode);
-    // Clear existing region when changing drawing mode
+    
+    // Don't clear selection if simply turning off drawing mode
+    if (mode === null) return;
+    
+    // Only clear these when changing drawing mode
     setSelectedRegion(null);
+    setConfirmedRegion(null);
+    setSelectedPlace(null);
+    setPopularPlaces([]);
+    setPlacesApiError(false);
+  };
+
+  // Add this new effect for handling Enter key
+  useEffect(() => {
+    const handleKeyPress = (e) => {
+      if (e.key === 'Enter' && drawingMode && selectedRegion) {
+        console.log("Enter pressed - confirming region:", selectedRegion);
+        setConfirmedRegion(selectedRegion);
+        setDrawingMode(null); // Exit drawing mode
+        
+        // Show confirmation message
+        setShowConfirmHint(false);
+      }
+    };
+
+    window.addEventListener('keypress', handleKeyPress);
+    return () => window.removeEventListener('keypress', handleKeyPress);
+  }, [drawingMode, selectedRegion]);
+
+  const handleGoToPlace = () => {
+    if (selectedPlace && mapRef.current) {
+      mapRef.current.panTo({ lat: selectedPlace.lat, lng: selectedPlace.lng });
+      mapRef.current.setZoom(14);
+      setSelectedPlace(null);
+      setAutocompleteValue('');
+    }
+  };
+
+  // Update the rendering of popular places to handle REST API results
+  const renderPopularPlace = (place) => {
+    const name = place.displayName?.text || place.name;
+    const rating = place.rating;
+    const ratingsTotal = place.userRatingCount || place.user_ratings_total || 0;
+    return (
+      <li key={place.id || name} className="popular-place-item">
+        <div className="popular-place-name">{name}</div>
+        {rating && (
+          <div className="popular-place-rating">
+            ★ {typeof rating === 'number' ? rating.toFixed(1) : rating} ({ratingsTotal})
+          </div>
+        )}
+      </li>
+    );
+  };
+
+  // New function to fetch autocomplete suggestions from Places API (New)
+  const fetchAutocompleteSuggestions = async (input) => {
+    if (!input) {
+      setAutocompleteSuggestions([]);
+      return;
+    }
+    setAutocompleteLoading(true);
+    setAutocompleteError(null);
+    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+    const url = `https://places.googleapis.com/v1/places:autocomplete?key=${apiKey}`;
+    const body = {
+      input,
+      languageCode: 'en'
+    };
+    try {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Goog-FieldMask": "suggestions.placePrediction.placeId,suggestions.placePrediction.text.text,suggestions.placePrediction.structuredFormat.mainText.text,suggestions.placePrediction.structuredFormat.secondaryText.text"
+        },
+        body: JSON.stringify(body)
+      });
+      if (!response.ok) {
+        const errorText = await response.text();
+        setAutocompleteError(errorText);
+        setAutocompleteSuggestions([]);
+        setAutocompleteLoading(false);
+        return;
+      }
+      const data = await response.json();
+      setAutocompleteSuggestions(data.suggestions || []);
+      setAutocompleteLoading(false);
+    } catch (error) {
+      setAutocompleteError(error.message);
+      setAutocompleteSuggestions([]);
+      setAutocompleteLoading(false);
+    }
+  };
+
+  // Debounced effect for autocomplete
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      fetchAutocompleteSuggestions(autocompleteValue);
+    }, 300);
+    return () => clearTimeout(handler);
+  }, [autocompleteValue]);
+
+  const renderSearchAndPopular = () => {
+    return (
+      <div className="destination-search-container">
+        <input
+          value={autocompleteValue}
+          onChange={e => setAutocompleteValue(e.target.value)}
+          placeholder="Search for a destination..."
+          className="destination-search-input"
+        />
+        {autocompleteLoading && <div style={{ color: '#9dffb0', marginTop: 4 }}>Loading...</div>}
+        {autocompleteError && <div style={{ color: '#ff5757', marginTop: 4 }}>{autocompleteError}</div>}
+        {autocompleteSuggestions.length > 0 && (
+          <ul className="destination-suggestions">
+            {autocompleteSuggestions.map((suggestion) => {
+              const pred = suggestion.placePrediction;
+              if (!pred) return null;
+              return (
+                <li
+                  key={pred.placeId}
+                  onClick={async () => {
+                    setAutocompleteSuggestions([]);
+                    setAutocompleteLoading(true);
+                    setAutocompleteError(null);
+                    setAutocompleteValue(pred.structuredFormat?.mainText?.text || pred.text?.text || '');
+                    // Fetch place details to get location
+                    try {
+                      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+                      const url = `https://places.googleapis.com/v1/places/${pred.placeId}?key=${apiKey}`;
+                      const response = await fetch(url, {
+                        method: "GET",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "X-Goog-FieldMask": "location"
+                        }
+                      });
+                      if (response.ok) {
+                        const data = await response.json();
+                        if (data.location && mapRef.current) {
+                          const { latitude, longitude } = data.location;
+                          mapRef.current.panTo({ lat: latitude, lng: longitude });
+                          mapRef.current.setZoom(15);
+                        }
+                      }
+                    } catch (err) {
+                      setAutocompleteError("Could not pan to place location.");
+                    } finally {
+                      setAutocompleteLoading(false);
+                    }
+                  }}
+                >
+                  <div>
+                    <strong>{pred.structuredFormat?.mainText?.text || pred.text?.text}</strong>
+                    {pred.structuredFormat?.secondaryText?.text && (
+                      <div style={{ fontSize: '0.9em', color: '#b0ffb0' }}>
+                        {pred.structuredFormat.secondaryText.text}
+                      </div>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+        
+        {showConfirmHint && selectedRegion && !confirmedRegion && (
+          <div className="region-confirmation-message">
+            Press Enter to confirm this region and find popular places
+          </div>
+        )}
+        
+        {confirmedRegion && (
+          <div className="popular-destinations-container">
+            <h4>Popular Places in Selected Region</h4>
+            {loadingPlaces ? (
+              <div className="popular-destinations-message">
+                Finding popular destinations...
+              </div>
+            ) : placesApiError ? (
+              <div className="popular-destinations-error">
+                <p>Unable to load popular places. This may be due to:</p>
+                <ul>
+                  <li>API usage limits</li>
+                  <li>Places API not enabled in your Google Cloud Console</li>
+                </ul>
+                <p>Please check your API configuration and ensure the Places API is enabled.</p>
+                <button 
+                  className="retry-places-button"
+                  onClick={() => {
+                    setPlacesApiError(false);
+                    setLoadingPlaces(true);
+                    // Re-trigger the useEffect by "re-confirming" the region
+                    const currentRegion = confirmedRegion;
+                    setConfirmedRegion(null);
+                    setTimeout(() => setConfirmedRegion(currentRegion), 100);
+                  }}
+                >
+                  Retry
+                </button>
+              </div>
+            ) : popularPlaces.length > 0 ? (
+              <ul className="popular-places-list">
+                {popularPlaces.map(place => renderPopularPlace(place))}
+              </ul>
+            ) : (
+              <div className="popular-destinations-message">
+                No popular destinations found in this area. Try selecting a different region.
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   };
 
   if (loading) {
@@ -382,6 +712,8 @@ const Dashboard = () => {
           <MapComponent
             onRegionSelect={handleRegionSelect}
             drawingMode={drawingMode}
+            ref={mapRef}
+            onLoadStateChange={handleMapLoadStateChange}
           />
         </ErrorBoundary>
         
@@ -395,9 +727,24 @@ const Dashboard = () => {
         
         <div className="dashboard-sidebar-overlay">
           <h2>Explore</h2>
-          <p>Discover nearby natural destinations to connect with nature and find your next adventure.</p>
+          {renderSearchAndPopular()}
           <div className="sidebar-spacer" style={{ flex: 1 }} />
           
+          {drawingMode && selectedRegion && (
+            <div style={{ 
+              color: '#9dffb0', 
+              textAlign: 'center', 
+              fontSize: '0.9rem', 
+              marginTop: '10px', 
+              marginBottom: '10px',
+              padding: '8px',
+              backgroundColor: 'rgba(157, 255, 176, 0.1)',
+              borderRadius: '8px'
+            }}>
+              Press Enter to finalize region for popular places
+            </div>
+          )}
+
           <div className="drawing-tools-panel">
             <div className="drawing-tool-container" onClick={() => handleSetDrawingMode('circle')}>
               <button className={`drawing-tool-button ${drawingMode === 'circle' ? 'active' : ''}`}>

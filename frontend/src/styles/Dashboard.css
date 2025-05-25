@@ -1109,22 +1109,21 @@ textarea:focus-visible,
 .dashboard-sidebar-overlay {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
-  align-items: flex-start;
   position: absolute;
   top: 32px;
   bottom: 32px;
   left: 32px;
-  right: unset;
-  width: clamp(220px, 22vw, 340px);
+  right: 32px;
+  width: auto;
   max-width: 340px;
-  min-width: 160px;
+  min-width: 220px;
   background: rgba(0, 18, 8, 0.92);
-  border-radius: 48px 48px 48px 48px / 60px 60px 60px 60px;
+  border-radius: 32px;
   box-shadow: 0 8px 32px 0 rgba(0,0,0,0.22);
   z-index: 10;
-  padding: clamp(14px, 3vw, 32px) clamp(10px, 2vw, 24px) clamp(12px, 2vw, 28px) clamp(10px, 2vw, 24px);
+  padding: 32px;
   border: none;
+  overflow-y: auto;
 }
 
 .dashboard-sidebar-overlay h2 {
@@ -1142,14 +1141,15 @@ textarea:focus-visible,
 
 @media (max-width: 700px) {
   .dashboard-sidebar-overlay {
-    left: 8px;
-    top: 8px;
-    bottom: 8px;
-    width: clamp(140px, 80vw, 95vw);
-    min-width: 110px;
-    max-width: 95vw;
-    border-radius: 32px 32px 32px 32px / 40px 40px 40px 40px;
-    padding: clamp(8px, 2vw, 14px) clamp(6px, 2vw, 12px) clamp(8px, 2vw, 14px) clamp(6px, 2vw, 12px);
+    left: 16px;
+    top: 16px;
+    bottom: 16px;
+    right: 16px;
+    width: auto;
+    min-width: unset;
+    max-width: calc(100vw - 32px);
+    border-radius: 24px;
+    padding: 24px;
   }
   .dashboard-sidebar-overlay h2 {
     font-size: 1.2rem;
@@ -1580,4 +1580,235 @@ textarea:focus-visible,
     transform: translateY(-110%);
     opacity: 0;
   }
+}
+
+/* Search and Navigation Styles */
+.destination-search-container {
+  position: relative;
+  width: 100%;
+  margin-bottom: 16px;
+}
+
+.destination-search-input {
+  width: 100%;
+  padding: 12px 16px;
+  border-radius: 20px;
+  border: 1px solid #9dffb0;
+  background-color: rgba(0, 24, 10, 0.85);
+  color: #e0ffe8;
+  font-size: 1rem;
+  transition: all 0.2s ease;
+}
+
+.destination-search-input:focus {
+  border-color: #9dffb0;
+  box-shadow: 0 0 0 2px rgba(157, 255, 176, 0.2);
+}
+
+.destination-search-input::placeholder {
+  color: rgba(224, 255, 232, 0.6);
+}
+
+.go-to-button {
+  width: 100%;
+  padding: 12px 16px;
+  margin-top: 8px;
+  border-radius: 20px;
+  border: 1px solid #9dffb0;
+  background-color: #9dffb0;
+  color: #001208;
+  font-size: 1rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.go-to-button:hover {
+  background-color: #b3ffc1;
+  transform: translateY(-1px);
+}
+
+.go-to-button:active {
+  transform: translateY(0);
+}
+
+.destination-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background-color: #001208;
+  border: 1px solid rgba(157, 255, 176, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  margin-top: 4px;
+  z-index: 1000;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.destination-suggestions li {
+  padding: 12px 16px;
+  cursor: pointer;
+  color: #9dffb0;
+  transition: all 0.2s ease;
+}
+
+.destination-suggestions li:hover {
+  background-color: rgba(157, 255, 176, 0.1);
+}
+
+/* Enhanced Region Confirmation Message */
+.region-confirmation-message {
+  margin: 12px 0;
+  padding: 12px 16px;
+  background-color: rgba(157, 255, 176, 0.15);
+  border: 1px solid rgba(157, 255, 176, 0.3);
+  border-radius: 8px;
+  color: #9dffb0;
+  text-align: center;
+  font-size: 1rem;
+  font-weight: 500;
+  animation: pulse-outline 2s infinite;
+  position: relative;
+  overflow: hidden;
+}
+
+.region-confirmation-message::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(157, 255, 176, 0.25),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* API Error Message Styling */
+.popular-destinations-error {
+  padding: 12px;
+  background-color: rgba(255, 87, 87, 0.1);
+  border: 1px solid rgba(255, 87, 87, 0.2);
+  border-radius: 8px;
+  color: #ff9e9e;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.popular-destinations-error p {
+  margin: 6px 0;
+  color: #ff9e9e;
+  font-size: 0.9rem;
+}
+
+.popular-destinations-error ul {
+  margin: 8px 0;
+  padding-left: 24px;
+  list-style-type: disc;
+}
+
+.popular-destinations-error li {
+  margin-bottom: 4px;
+  color: #ffb7b7;
+}
+
+.retry-places-button {
+  margin-top: 12px;
+  padding: 8px 16px;
+  background-color: rgba(157, 255, 176, 0.15);
+  border: 1px solid rgba(157, 255, 176, 0.3);
+  border-radius: 20px;
+  color: #9dffb0;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retry-places-button:hover {
+  background-color: rgba(157, 255, 176, 0.25);
+  transform: translateY(-1px);
+}
+
+.retry-places-button:active {
+  transform: translateY(0);
+}
+
+/* Ensure any lists have proper styling */
+.destination-suggestions,
+.popular-places-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.popular-destinations-container {
+  margin-top: 16px;
+  padding: 16px;
+  background-color: rgba(0, 24, 10, 0.5);
+  border-radius: 12px;
+  border: 1px solid rgba(157, 255, 176, 0.1);
+}
+
+.popular-destinations-container h4 {
+  color: #9dffb0;
+  margin: 0 0 12px 0;
+  font-size: 1.1rem;
+}
+
+.popular-destinations-message {
+  color: #e0ffe8;
+  font-size: 0.95rem;
+  opacity: 0.8;
+  line-height: 1.4;
+}
+
+/* Popular Places List Styles */
+.popular-places-list {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0 0;
+}
+
+.popular-place-item {
+  padding: 12px;
+  margin-bottom: 8px;
+  background-color: rgba(0, 18, 8, 0.6);
+  border: 1px solid rgba(157, 255, 176, 0.15);
+  border-radius: 8px;
+  transition: all 0.2s ease;
+}
+
+.popular-place-item:hover {
+  background-color: rgba(0, 28, 15, 0.7);
+  border-color: rgba(157, 255, 176, 0.3);
+  transform: translateY(-2px);
+}
+
+.popular-place-name {
+  color: #9dffb0;
+  font-weight: 500;
+  font-size: 1rem;
+  margin-bottom: 4px;
+}
+
+.popular-place-rating {
+  color: #e0ffe8;
+  font-size: 0.85rem;
+  opacity: 0.9;
 } 

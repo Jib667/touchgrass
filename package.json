@@ -22,6 +22,7 @@
   "dependencies": {
     "@react-google-maps/api": "^2.20.6",
     "esbuild": "^0.25.4",
-    "react-router-dom": "^7.6.0"
+    "react-router-dom": "^7.6.0",
+    "use-places-autocomplete": "^4.0.1"
   }
 }
