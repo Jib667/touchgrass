@@ -225,19 +225,27 @@ const Dashboard = () => {
     };
   }, [showProfileDropdown, showSideNav]);
 
-  // Update the MapComponent's onRegionSelect handler to clear popular places
+  // Handler for region select
   const handleRegionSelect = (regionData) => {
     console.log("Region selected:", regionData);
     
-    // Clear previous places when selecting a new region
-    setPopularPlaces([]);
+    // Don't clear popular places if we already have them
+    if (!popularPlaces.length) {
+      setPopularPlaces([]);
+    }
     
     if (regionData) {
       setSelectedRegion(regionData);
+      
+      // Also set confirmed region when a region is selected
+      // This will trigger the useEffect to fetch popular places
+      setConfirmedRegion(regionData);
+      
       // Show confirmation hint for any selected region (circle or polygon)
       setShowConfirmHint(true);
     } else {
       setSelectedRegion(null);
+      setConfirmedRegion(null);
       setShowConfirmHint(false);
     }
   };
@@ -276,6 +284,8 @@ const Dashboard = () => {
       });
       return;
     }
+    
+    // Set loading state and clear error
     setLoadingPlaces(true);
     setPlacesApiError(false);
 
@@ -356,21 +366,38 @@ const Dashboard = () => {
       return null;
     };
 
+    // Use a variable to track if the component is mounted
+    let isMounted = true;
+    
     const fetchPopularPlaces = async () => {
       try {
         const regionInfo = getRegionCenterAndRadius(confirmedRegion);
         if (!regionInfo) throw new Error("Invalid region info");
+        
         const places = await fetchPopularPlacesREST(regionInfo);
-        setPopularPlaces(places);
-        setLoadingPlaces(false);
+        
+        // Only update state if component is still mounted
+        if (isMounted) {
+          setPopularPlaces(places);
+          setLoadingPlaces(false);
+        }
       } catch (error) {
         console.error("Error fetching popular places (REST):", error);
-        setPlacesApiError(true);
-        setLoadingPlaces(false);
+        
+        // Only update state if component is still mounted
+        if (isMounted) {
+          setPlacesApiError(true);
+          setLoadingPlaces(false);
+        }
       }
     };
 
     fetchPopularPlaces();
+    
+    // Cleanup function to prevent state updates after unmount
+    return () => {
+      isMounted = false;
+    };
   }, [confirmedRegion, mapScriptLoaded]);
 
   // Handle clear region

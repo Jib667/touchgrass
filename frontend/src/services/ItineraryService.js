@@ -258,7 +258,7 @@ const parseItineraryItems = (text) => {
     const matches = [...text.matchAll(itemsRegex)];
     
     const items = matches.map(match => {
-      const time = match[1].trim();
+      const time = formatTime(match[1].trim());
       const location = match[2].trim();
       const description = match[3].trim();
       
@@ -278,7 +278,7 @@ const parseItineraryItems = (text) => {
       const altMatches = [...text.matchAll(altRegex)];
       
       const altItems = altMatches.map(match => {
-        const time = match[1].trim();
+        const time = formatTime(match[1].trim());
         const location = match[2].trim();
         const description = match[3].trim();
         
@@ -299,7 +299,7 @@ const parseItineraryItems = (text) => {
       const boldMatches = [...text.matchAll(boldRegex)];
       
       const boldItems = boldMatches.map(match => {
-        const time = match[1].trim();
+        const time = formatTime(match[1].trim());
         const location = match[2].trim();
         const description = match[3].trim();
         
@@ -321,4 +321,41 @@ const parseItineraryItems = (text) => {
     console.error('Error parsing itinerary items:', error);
     return [];
   }
+};
+
+/**
+ * Formats time strings to AM/PM format
+ * @param {string} timeString - Time string to format
+ * @returns {string} - Formatted time string
+ */
+const formatTime = (timeString) => {
+  // If already in AM/PM format, return as is
+  if (timeString.includes('AM') || timeString.includes('PM')) {
+    return timeString;
+  }
+  
+  // Try to parse 24-hour format (15:30)
+  const timeMatch = timeString.match(/(\d{1,2})[:\.](\d{2})/);
+  if (timeMatch) {
+    let hours = parseInt(timeMatch[1], 10);
+    const minutes = parseInt(timeMatch[2], 10);
+    
+    // Convert to 12-hour format
+    const period = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12 || 12; // Convert 0 to 12
+    
+    return `${hours}:${minutes.toString().padStart(2, '0')} ${period}`;
+  }
+  
+  // If it's just a number (like "9"), assume it's an hour
+  if (/^\d+$/.test(timeString)) {
+    const hours = parseInt(timeString, 10);
+    const period = hours >= 12 ? 'PM' : 'AM';
+    const formattedHours = hours % 12 || 12;
+    
+    return `${formattedHours}:00 ${period}`;
+  }
+  
+  // If we can't parse it, return as is
+  return timeString;
 }; 
