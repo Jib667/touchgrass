@@ -632,11 +632,28 @@
   font-weight: 500;
   cursor: pointer;
   transition: all 0.2s ease;
+  position: relative;
+  overflow: hidden;
+}
+
+.nav-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(157, 255, 176, 0.1), transparent);
+  transition: 0.5s;
 }
 
 .nav-button:hover {
   background-color: rgba(157, 255, 176, 0.1);
   transform: translateY(-2px);
+}
+
+.nav-button:hover::before {
+  left: 100%;
 }
 
 .nav-button svg {
@@ -659,14 +676,13 @@
 
 /* Submit Button */
 .submit-button {
-  background: linear-gradient(45deg, #2d9b3e, #35ad49);
-  color: white;
+  background: transparent;
+  color: #9dffb0;
   font-size: 1.2rem;
   font-weight: 600;
   padding: 16px 36px;
-  border: none;
+  border: 1px solid rgba(157, 255, 176, 0.3);
   border-radius: 40px;
-  box-shadow: 0 6px 20px rgba(53, 173, 73, 0.4);
   cursor: pointer;
   transition: all 0.3s ease;
   text-transform: uppercase;
@@ -687,14 +703,13 @@
   left: -100%;
   width: 100%;
   height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  background: linear-gradient(90deg, transparent, rgba(157, 255, 176, 0.1), transparent);
   transition: 0.5s;
 }
 
 .submit-button:hover {
-  background: linear-gradient(45deg, #248233, #2d9b3e);
-  transform: translateY(-3px);
-  box-shadow: 0 8px 25px rgba(53, 173, 73, 0.5);
+  background-color: rgba(157, 255, 176, 0.05);
+  transform: translateY(-2px);
 }
 
 .submit-button:hover::before {
@@ -703,7 +718,6 @@
 
 .submit-button:active {
   transform: translateY(-1px);
-  box-shadow: 0 4px 15px rgba(53, 173, 73, 0.4);
 }
 
 .ai-icon {
@@ -791,4 +805,25 @@
 /* New CSS rule */
 .navigation-controls:has(.create-plan-button):not(:has(.prev-button)) {
   transform: translateX(-70%);
+}
+
+/* Cancel button with reflection effect */
+.cancel-button {
+  position: relative;
+  overflow: hidden;
+}
+
+.cancel-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(157, 255, 176, 0.1), transparent);
+  transition: 0.5s;
+}
+
+.cancel-button:hover::before {
+  left: 100%;
 } 

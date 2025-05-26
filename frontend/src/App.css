@@ -385,22 +385,22 @@
   justify-content: center;
   padding: 12px;
   border-radius: 8px;
-  border: 1px solid rgba(157, 255, 176, 0.2);
+  border: 1px solid rgba(157, 255, 176, 0.3);
   background-color: transparent;
-  color: white;
+  color: #9dffb0;
   font-family: var(--secondary-font);
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   position: relative;
   text-transform: none;
   letter-spacing: normal;
 }
 
 .signup-button:hover {
-  background-color: rgba(157, 255, 176, 0.08);
-  transform: translateY(-1px);
+  background-color: rgba(157, 255, 176, 0.05);
+  transform: translateY(-2px);
 }
 
 .signup-icon {
@@ -536,33 +536,26 @@
 .submit-button {
   flex: 1;
   padding: 12px;
-  border-radius: 6px;
-  border: 1px solid rgba(157, 255, 176, 0.2);
-  font-family: var(--primary-font);
+  border-radius: 8px;
+  font-family: var(--secondary-font);
   font-size: 1rem;
   font-weight: 500;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: all 0.2s ease;
   text-transform: none;
-}
-
-.cancel-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border: 1px solid rgba(157, 255, 176, 0.3);
   background-color: transparent;
-  color: rgba(157, 255, 176, 0.8);
+  color: #9dffb0;
 }
 
-.cancel-button:hover {
-  background-color: rgba(157, 255, 176, 0.05);
-}
-
-.submit-button {
-  background-color: rgba(157, 255, 176, 0.15);
-  color: var(--mint-green);
-}
-
+.cancel-button:hover,
 .submit-button:hover {
-  background-color: rgba(157, 255, 176, 0.25);
-  transform: translateY(-1px);
+  background-color: rgba(157, 255, 176, 0.05);
+  transform: translateY(-2px);
 }
 
 .submit-button:disabled {

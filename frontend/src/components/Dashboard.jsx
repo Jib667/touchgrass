@@ -39,7 +39,11 @@ const Dashboard = () => {
   const [autocompleteSuggestions, setAutocompleteSuggestions] = useState([]);
   const [autocompleteLoading, setAutocompleteLoading] = useState(false);
   const [autocompleteError, setAutocompleteError] = useState(null);
-  const [recentSearches, setRecentSearches] = useState([]);
+  const [recentSearches, setRecentSearches] = useState(() => {
+    // Load recent searches from localStorage on initial render
+    const savedSearches = localStorage.getItem('recentSearches');
+    return savedSearches ? JSON.parse(savedSearches) : [];
+  });
   const [showRecentSearches, setShowRecentSearches] = useState(false);
   const searchInputRef = useRef(null);
 
@@ -386,6 +390,12 @@ const Dashboard = () => {
     const handleKeyPress = (e) => {
       if (e.key === 'Enter' && selectedRegion) {
         console.log("Enter pressed - confirming region:", selectedRegion);
+        
+        // Use the map's confirmRegion method if available
+        if (mapRef.current && mapRef.current.confirmRegion) {
+          mapRef.current.confirmRegion();
+        }
+        
         setConfirmedRegion(selectedRegion);
         setDrawingMode(null); // Exit drawing mode
         
@@ -430,11 +440,13 @@ const Dashboard = () => {
     if (!search.trim()) return;
     
     // Add to the beginning and remove duplicates
-    setRecentSearches(prevSearches => {
-      const newSearches = [search, ...prevSearches.filter(s => s !== search)];
-      // Keep only the 5 most recent searches
-      return newSearches.slice(0, 5);
-    });
+    const newSearches = [search, ...recentSearches.filter(s => s !== search)].slice(0, 5);
+    
+    // Update state
+    setRecentSearches(newSearches);
+    
+    // Save to localStorage
+    localStorage.setItem('recentSearches', JSON.stringify(newSearches));
   };
 
   // Function to handle click on a recent search
@@ -537,7 +549,7 @@ const Dashboard = () => {
           {showRecentSearches && recentSearches.length > 0 && !autocompleteSuggestions.length && (
             <ul className="recent-searches">
               <li className="recent-searches-header">Recent Searches</li>
-              {recentSearches.map((search, index) => (
+              {recentSearches.slice(0, 5).map((search, index) => (
                 <li 
                   key={`recent-${index}`} 
                   onClick={() => handleRecentSearchClick(search)}
@@ -647,6 +659,7 @@ const Dashboard = () => {
             </ul>
           ) : (
             <div className="popular-destinations-message">
+              {/* Empty container with no message */}
             </div>
           )}
         </div>

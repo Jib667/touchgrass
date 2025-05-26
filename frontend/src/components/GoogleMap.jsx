@@ -606,8 +606,20 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
       if (map) {
         map.setZoom(zoomLevel);
       }
+    },
+    
+    // Add method to confirm region
+    confirmRegion: () => {
+      if (selectedRegion) {
+        // Notify parent component
+        if (onRegionSelect) {
+          onRegionSelect(selectedRegion);
+        }
+        // Exit drawing mode
+        setDrawingMode(null);
+      }
     }
-  }), [map]);
+  }), [map, selectedRegion, onRegionSelect]);
 
   if (!isLoaded) {
     return <div className="loading">Loading map...</div>;

@@ -1232,7 +1232,6 @@ textarea:focus-visible,
 
 .sidebar-spacer {
   flex: 1 1 auto;
-  min-height: 12px;
 }
 
 .drawing-hint {
@@ -1713,7 +1712,7 @@ textarea:focus-visible,
   background-color: rgba(0, 24, 10, 0.5);
   border-radius: 12px;
   border: 1px solid rgba(157, 255, 176, 0.1);
-  height: 320px; /* Reduced height to prevent scrolling in panel */
+  height: 380px; /* Increased from 320px to make it taller */
   display: flex;
   flex-direction: column;
   overflow: hidden;
@@ -1747,8 +1746,8 @@ textarea:focus-visible,
 }
 
 .drawing-tools-panel {
-  margin-top: 8px; /* Reduced margin */
-  padding-top: 12px; /* Reduced padding */
+  margin-top: 4px; /* Reduced margin further */
+  padding-top: 10px; /* Reduced padding further */
   border-top: 1px solid rgba(157, 255, 176, 0.1);
   flex-shrink: 0;
 }
