@@ -96,7 +96,7 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
   const [center, setCenter] = useState(defaultCenter);
   const [userLocation, setUserLocation] = useState(null);
   const [isMapLoaded, setIsMapLoaded] = useState(false);
-  const [mapType, setMapType] = useState('hybrid'); // Start with satellite + labels
+  const [mapType, setMapType] = useState('roadmap'); // Change from 'hybrid' to 'roadmap'
   
   // Region selection state
   const [selectedRegion, setSelectedRegion] = useState(null);
@@ -225,8 +225,8 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
     setMap(map);
     setIsMapLoaded(true);
     
-    // Set to hybrid view
-    map.setMapTypeId('hybrid');
+    // Set to roadmap view
+    map.setMapTypeId('roadmap');
     
     // Add click listener for circle creation
     map.addListener('click', handleMapClick);
@@ -568,6 +568,30 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
     zIndex: 2,
   };
 
+  // Add useEffect for handling keyboard events
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        // Exit drawing mode
+        setDrawingMode(null);
+        
+        // Clear any selected region
+        handleClearRegion();
+        
+        // Reset drawing manager if available
+        if (drawingManager) {
+          drawingManager.setDrawingMode(null);
+        }
+      }
+    };
+    
+    window.addEventListener('keydown', handleKeyDown);
+    
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [drawingManager]);
+
   // Clean up timeouts on unmount
   useEffect(() => {
     return () => {
@@ -710,14 +734,14 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
       {/* Drawing instructions with temporary display */}
       {showInstructions && drawingMode === 'polygon' && (
         <div className="drawing-instructions">
-          <p>Click on the map to add points. Complete the shape by clicking the first point again.</p>
+          <p>Click on the map to add points. Complete the shape by clicking the first point again. Press ESC to cancel.</p>
         </div>
       )}
       
       {/* Drawing instructions for circle mode */}
       {showInstructions && drawingMode === 'circle' && (
         <div className="drawing-instructions">
-          <p>Click on the map to create a circle, then drag the handle to adjust the radius.</p>
+          <p>Click on the map to create a circle, then drag the handle to adjust the radius. Press ESC to cancel.</p>
         </div>
       )}
     </div>

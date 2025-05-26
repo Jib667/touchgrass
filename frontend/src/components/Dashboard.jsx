@@ -404,9 +404,10 @@ const Dashboard = () => {
     setPlacesApiError(false);
   };
 
-  // Add this new effect for handling Enter key
+  // Add this new effect for handling key presses (Enter and Escape)
   useEffect(() => {
     const handleKeyPress = (e) => {
+      // Handle Enter key for confirming region
       if (e.key === 'Enter' && selectedRegion) {
         console.log("Enter pressed - confirming region:", selectedRegion);
         
@@ -421,11 +422,24 @@ const Dashboard = () => {
         // Remove the confirmation message
         setShowConfirmHint(false);
       }
+      
+      // Handle Escape key to exit drawing mode
+      if (e.key === 'Escape') {
+        if (drawingMode !== null) {
+          console.log("Escape pressed - exiting drawing mode");
+          setDrawingMode(null);
+          handleClearRegion();
+        }
+      }
     };
 
     window.addEventListener('keypress', handleKeyPress);
-    return () => window.removeEventListener('keypress', handleKeyPress);
-  }, [selectedRegion]);
+    window.addEventListener('keydown', handleKeyPress); // Add keydown for Escape key
+    return () => {
+      window.removeEventListener('keypress', handleKeyPress);
+      window.removeEventListener('keydown', handleKeyPress);
+    };
+  }, [selectedRegion, drawingMode]);
 
   const handleGoToPlace = () => {
     if (selectedPlace && mapRef.current) {
