@@ -288,9 +288,30 @@ const Dashboard = () => {
     const fetchPopularPlacesREST = async ({ lat, lng, radius }) => {
       const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
       const url = `https://places.googleapis.com/v1/places:searchNearby?key=${apiKey}`;
+      
+      // Calculate how many places to fetch based on region size
+      // For small regions (< 500m), show 5 places
+      // For medium regions (500m-2000m), show 10 places
+      // For large regions (> 2000m), show 15 places
+      let maxResults = 5;
+      if (radius > 2000) {
+        maxResults = 15;
+      } else if (radius > 500) {
+        maxResults = 10;
+      }
+      
       const body = {
-        includedTypes: ["tourist_attraction", "park"],
-        maxResultCount: 5,
+        includedTypes: [
+          "tourist_attraction", 
+          "park",
+          "museum",
+          "campground",
+          "amusement_park",
+          "zoo",
+          "aquarium",
+          "art_gallery"
+        ],
+        maxResultCount: maxResults,
         locationRestriction: {
           circle: {
             center: { latitude: lat, longitude: lng },
@@ -303,7 +324,7 @@ const Dashboard = () => {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Goog-FieldMask": "places.displayName,places.rating,places.userRatingCount"
+            "X-Goog-FieldMask": "places.displayName,places.rating,places.userRatingCount,places.location"
           },
           body: JSON.stringify(body)
         });
@@ -420,9 +441,40 @@ const Dashboard = () => {
     const name = place.displayName?.text || place.name;
     const rating = place.rating;
     const ratingsTotal = place.userRatingCount || place.user_ratings_total || 0;
+    
+    // Handle click on a place
+    const handlePlaceClick = () => {
+      // Check if the place has location data
+      if (place.location) {
+        const { latitude, longitude } = place.location;
+        if (mapRef.current) {
+          mapRef.current.panTo({ lat: latitude, lng: longitude });
+          mapRef.current.setZoom(15);
+        }
+      }
+    };
+    
     return (
-      <li key={place.id || name} className="popular-place-item">
-        <div className="popular-place-name">{name}</div>
+      <li 
+        key={place.id || name} 
+        className="popular-place-item"
+        onClick={handlePlaceClick}
+        style={{ cursor: place.location ? 'pointer' : 'default' }}
+        title={place.location ? `Center map on ${name}` : undefined}
+      >
+        <div className="popular-place-name">
+          {name}
+          {place.location && (
+            <span style={{ 
+              marginLeft: 'auto', 
+              fontSize: '0.85rem', 
+              opacity: 0.6,
+              paddingLeft: '5px'
+            }}>
+              →
+            </span>
+          )}
+        </div>
         {rating && (
           <div className="popular-place-rating">
             ★ {typeof rating === 'number' ? rating.toFixed(1) : rating} ({ratingsTotal})
@@ -624,13 +676,13 @@ const Dashboard = () => {
         </div>
         
         <div className="popular-destinations-container">
-          <h4>Popular Places</h4>
+          <h4>Popular Places {popularPlaces.length > 0 ? `(${popularPlaces.length})` : ''}</h4>
           {loadingPlaces ? (
             <div className="popular-destinations-message">
               Finding popular destinations...
             </div>
           ) : placesApiError ? (
-            <div className="popular-destinations-error">
+            <div className="popular-destinations-error" style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
               <p>Unable to load popular places. This may be due to:</p>
               <ul>
                 <li>API usage limits</li>
@@ -656,8 +708,8 @@ const Dashboard = () => {
               {popularPlaces.map(place => renderPopularPlace(place))}
             </ul>
           ) : (
-            <div className="popular-destinations-message">
-              {/* Empty container with no message */}
+            <div className="popular-destinations-message" style={{ height: '100%' }}>
+              {confirmedRegion ? "No popular places found in this area." : "Select a region on the map to see popular places."}
             </div>
           )}
         </div>
