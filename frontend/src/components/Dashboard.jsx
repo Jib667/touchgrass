@@ -234,13 +234,11 @@ const Dashboard = () => {
     
     if (regionData) {
       setSelectedRegion(regionData);
-      // Show a subtle notification at the top instead of the bottom
-      if (drawingMode) {
-        setShowConfirmHint(true);
-        setTimeout(() => setShowConfirmHint(false), 5000);
-      }
+      // Show confirmation hint for any selected region (circle or polygon)
+      setShowConfirmHint(true);
     } else {
       setSelectedRegion(null);
+      setShowConfirmHint(false);
     }
   };
   
@@ -824,6 +822,7 @@ const Dashboard = () => {
             drawingMode={drawingMode}
             ref={mapRef}
             onLoadStateChange={handleMapLoadStateChange}
+            showConfirmHint={showConfirmHint}
           />
         </ErrorBoundary>
         
@@ -838,8 +837,7 @@ const Dashboard = () => {
         <div className="dashboard-sidebar-overlay">
           <h2>Explore</h2>
           {renderSearchAndPopular()}
-          <div className="sidebar-spacer" style={{ flex: 1 }} />
-
+          
           <div className="drawing-tools-panel">
             <div className="drawing-tool-container" onClick={() => handleSetDrawingMode('circle')}>
               <button className={`drawing-tool-button ${drawingMode === 'circle' ? 'active' : ''}`}>

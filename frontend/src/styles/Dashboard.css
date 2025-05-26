@@ -1121,9 +1121,10 @@ textarea:focus-visible,
   border-radius: 32px;
   box-shadow: 0 8px 32px 0 rgba(0,0,0,0.22);
   z-index: 10;
-  padding: 32px;
+  padding: 32px 32px 24px 32px;
   border: none;
-  overflow: hidden; /* Changed from overflow-y: auto to prevent scrolling */
+  overflow: hidden;
+  justify-content: space-between; /* Position content at top and buttons at bottom */
 }
 
 .dashboard-sidebar-overlay h2 {
@@ -1612,6 +1613,8 @@ textarea:focus-visible,
   flex-direction: column;
   gap: 12px;
   margin-bottom: 12px;
+  flex: 1;
+  overflow: hidden;
 }
 
 .search-input-wrapper {
@@ -1707,15 +1710,16 @@ textarea:focus-visible,
 
 .popular-destinations-container {
   margin-top: 0;
-  margin-bottom: 12px;
+  margin-bottom: 0;
   padding: 16px;
   background-color: rgba(0, 24, 10, 0.5);
   border-radius: 12px;
   border: 1px solid rgba(157, 255, 176, 0.1);
-  height: 380px; /* Increased from 320px to make it taller */
+  flex: 1;
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  min-height: 200px; /* Ensure a reasonable minimum height */
 }
 
 .popular-destinations-container h4 {
@@ -1746,10 +1750,21 @@ textarea:focus-visible,
 }
 
 .drawing-tools-panel {
-  margin-top: 4px; /* Reduced margin further */
-  padding-top: 10px; /* Reduced padding further */
+  margin-top: 24px;
+  padding-top: 24px;
   border-top: 1px solid rgba(157, 255, 176, 0.1);
   flex-shrink: 0;
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+/* Make the drawing tool containers share horizontal space evenly */
+.drawing-tool-container {
+  flex: 0 1 auto;
+  display: flex;
+  justify-content: center;
+  
 }
 
 /* API Error Message Styling */
@@ -1894,4 +1909,51 @@ textarea:focus-visible,
   overflow-y: auto;
   list-style: none;
   padding: 0;
+}
+
+/* Update drawing tool button styles for better width and appearance */
+.drawing-tool-button {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 12px;
+  background-color: rgba(157, 255, 176, 0.05);
+  border: 1px solid rgba(157, 255, 176, 0.2);
+  color: var(--mint-green);
+  width: 120%;
+  max-width: 220px; /* Increased from 130px to make buttons wider */
+  font-family: var(--secondary-font);
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  outline: none;
+  text-transform: none;
+}
+
+/* Add a bit more horizontal padding to give text more room */
+.drawing-tool-button span {
+  padding: 0 4px;
+  white-space: nowrap; /* Prevent text from wrapping */
+}
+
+.drawing-tool-button:hover {
+  background-color: rgba(157, 255, 176, 0.1);
+  transform: translateY(-2px);
+}
+
+.drawing-tool-button.active {
+  background-color: rgba(157, 255, 176, 0.15);
+  border-color: var(--mint-green);
+  box-shadow: 0 0 12px rgba(0, 230, 118, 0.2);
+}
+
+/* Ensure SVG icons have proper sizing */
+.drawing-tool-button svg {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
 } 

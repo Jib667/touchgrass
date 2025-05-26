@@ -91,7 +91,7 @@ const defaultOptions = {
   ]
 };
 
-const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingMode, onLoadStateChange }, ref) => {
+const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingMode, onLoadStateChange, showConfirmHint }, ref) => {
   const [map, setMap] = useState(null);
   const [center, setCenter] = useState(defaultCenter);
   const [userLocation, setUserLocation] = useState(null);
@@ -387,23 +387,19 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
     }
     
     // Store the polygon path
-    setPolygonPath(pathArray);
-    
-    // Set selected region
-    setSelectedRegion({
+    const regionData = {
       type: 'polygon',
       path: pathArray
-    });
+    };
+    setPolygonPath(pathArray);
+    setSelectedRegion(regionData);
     
     // Show explore button
     setShowExploreButton(true);
     
     // Notify parent component
     if (onRegionSelect) {
-      onRegionSelect({
-        type: 'polygon',
-        path: pathArray
-      });
+      onRegionSelect(regionData);
     }
     
     // Remove the polygon from the map as we'll render our own
@@ -687,9 +683,9 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
       {isMapLoaded && renderMapControls()}
       
       {/* Confirmation instruction for selected region */}
-      {selectedRegion && (drawingMode || polygonPath.length > 0) && (
+      {selectedRegion && showConfirmHint && (
         <div className="drawing-instructions confirm-instructions">
-          <p>Press Enter to confirm selection</p>
+          <p>Press enter to confirm selection</p>
         </div>
       )}
       
