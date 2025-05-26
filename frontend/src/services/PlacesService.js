@@ -115,7 +115,7 @@ async function fetchPlacesInCircle(center, radius) {
           radius: adjustedRadius
         }
       },
-      maxResultCount: 100,
+      maxResultCount: 20,
       rankPreference: "DISTANCE" // Closest places first
     };
     
@@ -174,7 +174,7 @@ async function fetchPlacesWithTextSearch(center, radius) {
           radius: radius
         }
       },
-      maxResultCount: 100
+      maxResultCount: 20
     };
     
     const response = await fetch(url, {

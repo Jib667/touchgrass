@@ -541,7 +541,7 @@ const ActivitySelector = ({
   );
 };
 
-const ExplorePopup = ({ region, onClose, onSubmit }) => {
+const ExplorePopup = ({ region, onClose }) => {
   // Form state
   const [timeRange, setTimeRange] = useState({ start: '09:00', end: '17:00' });
   const [tripType, setTripType] = useState('surprise'); // 'surprise' or 'custom'
@@ -627,14 +627,10 @@ const ExplorePopup = ({ region, onClose, onSubmit }) => {
       allActivityCategories: ACTIVITY_CATEGORIES // Send all activity categories to the backend
     };
     
-    // Call the parent component's onSubmit function
-    if (onSubmit) {
-      onSubmit(formData);
-    }
-    
     try {
       // Start generating the itinerary
       setIsGenerating(true);
+      setShowForm(false); // Hide form to show loading/itinerary
       setGenerationError(null);
       
       // Generate the itinerary using the ItineraryService
@@ -661,20 +657,24 @@ const ExplorePopup = ({ region, onClose, onSubmit }) => {
       setShowItinerary(true);
       
     } finally {
-      setIsGenerating(false);
+      setIsGenerating(false); // Stop loading, itinerary (or error) will be shown
     }
   };
   
   const handleCloseItinerary = () => {
     setShowItinerary(false);
     setItineraryData(null);
-    onClose();
+    setShowForm(true); // Show form again if user closes itinerary
+    // Call the main onClose to close the entire popup IF needed.
+    // This depends on whether we want to go back to the form or close everything.
+    // For now, let's assume closing itinerary means closing the popup.
+    onClose(); 
   };
 
   return (
     <>
-      {/* Show form when not generating or displaying itinerary */}
-      {!isGenerating && !showItinerary && (
+      {/* Show form when showForm is true, not generating, and not showing itinerary */}
+      {showForm && !isGenerating && !showItinerary && (
         <div className="explore-popup-overlay" onClick={onClose}>
           <div className="explore-popup" onClick={(e) => e.stopPropagation()}>
             <button className="close-button" onClick={onClose}>×</button>
@@ -809,8 +809,8 @@ const ExplorePopup = ({ region, onClose, onSubmit }) => {
         </div>
       )}
       
-      {/* Show itinerary display when data is available */}
-      {showItinerary && itineraryData && (
+      {/* Show itinerary display when data is available and not generating */}
+      {!isGenerating && showItinerary && itineraryData && (
         <ItineraryDisplay 
           itinerary={itineraryData} 
           onClose={handleCloseItinerary} 

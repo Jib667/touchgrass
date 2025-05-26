@@ -245,27 +245,27 @@ const Dashboard = () => {
   // Handler for explore button click
   const handleExplore = () => {
     if (!selectedRegion) return;
-    
-    // Show the explore popup instead of an alert
     setShowExplorePopup(true);
   };
 
   // Handler for closing the explore popup
   const handleCloseExplorePopup = () => {
     setShowExplorePopup(false);
+    // Reset the selection when the popup is closed from here
+    setSelectedRegion(null);
+    setConfirmedRegion(null); // Also clear confirmed region
+    setDrawingMode(null);
+    setPopularPlaces([]); // Clear popular places
+    setPlacesApiError(false); // Reset API error state
+    setShowConfirmHint(false); // Hide confirm hint
   };
 
-  // Handler for submitting the explore form
-  const handleExploreSubmit = (formData) => {
-    console.log("Explore form submitted:", formData);
-    
-    // Close the popup
-    setShowExplorePopup(false);
-    
-    // Reset the selection
-    setSelectedRegion(null);
-    setDrawingMode(null);
-  };
+  // Handler for submitting the explore form - this might no longer be needed if ExplorePopup handles its own generation
+  // const handleExploreSubmit = (formData) => {
+  //   console.log("Explore form submitted:", formData);
+  //   // The ExplorePopup now handles its own lifecycle including closing via its onClose prop
+  //   // setShowExplorePopup(false); // This might be redundant
+  // };
 
   // Add this effect to search for popular places when region is confirmed
   useEffect(() => {
@@ -1066,7 +1066,6 @@ const Dashboard = () => {
         <ExplorePopup 
           region={selectedRegion}
           onClose={handleCloseExplorePopup}
-          onSubmit={handleExploreSubmit}
         />
       )}
     </div>

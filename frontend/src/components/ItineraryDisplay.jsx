@@ -17,29 +17,29 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
     if (itinerary?.items && itinerary.items.length > 0) {
       // Process each item to extract place names and add links
       const processed = itinerary.items.map(item => {
-        // Try to extract a place name from the title
+        // Try to extract a place name from the location
         // We assume place names are often in brackets, quotes, or after a dash
         let placeName = '';
         let linkUrl = '';
         
         // Look for text in brackets like [Central Park]
-        const bracketMatch = item.title.match(/\[(.*?)\]/);
+        const bracketMatch = item.location?.match(/\[(.*?)\]/);
         if (bracketMatch) {
           placeName = bracketMatch[1];
         } 
         // Look for text in quotes like "Central Park"
-        else if (item.title.includes('"')) {
-          const quoteMatch = item.title.match(/"([^"]+)"/);
+        else if (item.location?.includes('"')) {
+          const quoteMatch = item.location.match(/"([^"]+)"/);
           if (quoteMatch) {
             placeName = quoteMatch[1];
           }
         }
-        // Otherwise use the whole title or part after a dash
+        // Otherwise use the whole location or part after a dash
         else {
-          if (item.title.includes(' - ')) {
-            placeName = item.title.split(' - ')[1].trim();
+          if (item.location?.includes(' - ')) {
+            placeName = item.location.split(' - ')[1].trim();
           } else {
-            placeName = item.title.trim();
+            placeName = item.location?.trim() || '';
           }
         }
         
@@ -49,7 +49,9 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
         }
         
         return {
-          ...item,
+          time: item.time,
+          title: item.location, // Use location as title for display
+          description: item.description,
           placeName,
           linkUrl
         };
