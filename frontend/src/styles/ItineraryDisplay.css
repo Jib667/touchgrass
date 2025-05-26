@@ -1,0 +1,336 @@
+.itinerary-display-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.7);
+  backdrop-filter: blur(5px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fade-in 0.3s ease-out;
+}
+
+.itinerary-display {
+  background-color: #001208;
+  border: 1px solid rgba(157, 255, 176, 0.2);
+  border-radius: 16px;
+  width: 90%;
+  max-width: 700px;
+  max-height: 90vh;
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.4);
+  animation: slide-up 0.4s ease-out;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.itinerary-display h2 {
+  font-family: var(--primary-font);
+  font-size: 1.8rem;
+  color: var(--mint-green);
+  margin: 0;
+  padding: 20px;
+  text-align: center;
+  border-bottom: 1px solid rgba(157, 255, 176, 0.1);
+}
+
+.close-button {
+  position: absolute;
+  top: 16px;
+  right: 16px;
+  background: rgba(157, 255, 176, 0.1);
+  border: none;
+  color: var(--mint-green);
+  font-size: 1.6rem;
+  line-height: 1;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  z-index: 2;
+}
+
+.close-button:hover {
+  background: rgba(157, 255, 176, 0.2);
+  transform: scale(1.1);
+}
+
+.itinerary-content {
+  padding: 20px;
+  overflow-y: auto;
+  max-height: calc(90vh - 80px);
+}
+
+.itinerary-item {
+  display: flex;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid rgba(157, 255, 176, 0.1);
+  position: relative;
+  transition: all 0.3s ease;
+}
+
+.itinerary-item:hover {
+  background-color: rgba(157, 255, 176, 0.05);
+  border-radius: 8px;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+}
+
+.itinerary-time {
+  flex: 0 0 90px;
+  font-weight: 600;
+  color: var(--mint-green);
+  font-size: 1rem;
+  background: rgba(157, 255, 176, 0.1);
+  padding: 6px 10px;
+  border-radius: 6px;
+  text-align: center;
+  height: fit-content;
+  margin-top: 4px;
+}
+
+.itinerary-details {
+  flex: 1;
+  padding-left: 16px;
+}
+
+.itinerary-details h3 {
+  margin: 0 0 8px 0;
+  font-size: 1.2rem;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.location-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(157, 255, 176, 0.15);
+  color: var(--mint-green);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  margin-left: 8px;
+  transition: all 0.2s ease;
+}
+
+.location-link:hover {
+  background-color: rgba(157, 255, 176, 0.3);
+  transform: scale(1.1);
+  box-shadow: 0 0 8px rgba(157, 255, 176, 0.4);
+}
+
+.location-link svg {
+  width: 16px;
+  height: 16px;
+}
+
+.itinerary-details p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.8);
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+
+.raw-content {
+  font-family: monospace;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+  padding: 16px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 0.9rem;
+  line-height: 1.4;
+}
+
+.itinerary-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  height: 300px;
+}
+
+.loading-spinner {
+  width: 50px;
+  height: 50px;
+  border: 3px solid rgba(157, 255, 176, 0.2);
+  border-radius: 50%;
+  border-top-color: var(--mint-green);
+  animation: spin 1s linear infinite;
+  margin-bottom: 20px;
+}
+
+.itinerary-loading p {
+  color: var(--mint-green);
+  font-size: 1.1rem;
+  margin-bottom: 10px;
+}
+
+.loading-hint {
+  color: rgba(157, 255, 176, 0.6) !important;
+  font-size: 0.9rem !important;
+}
+
+.itinerary-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 20px;
+  text-align: center;
+  height: 200px;
+  border: 1px dashed rgba(157, 255, 176, 0.3);
+  border-radius: 8px;
+  margin: 20px 0;
+}
+
+.itinerary-empty p {
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 1.1rem;
+}
+
+.view-toggle {
+  display: flex;
+  justify-content: center;
+  margin: 0 0 16px 0;
+  padding-top: 8px;
+}
+
+.view-toggle button {
+  background: rgba(157, 255, 176, 0.1);
+  border: 1px solid rgba(157, 255, 176, 0.2);
+  color: var(--mint-green);
+  padding: 6px 12px;
+  font-size: 0.85rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.view-toggle button:hover {
+  background: rgba(157, 255, 176, 0.2);
+}
+
+.itinerary-footer {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  margin-top: 24px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(157, 255, 176, 0.1);
+}
+
+.save-itinerary-button,
+.share-itinerary-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(157, 255, 176, 0.1);
+  border: 1px solid rgba(157, 255, 176, 0.2);
+  border-radius: 8px;
+  color: var(--mint-green);
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.save-itinerary-button:hover,
+.share-itinerary-button:hover {
+  background: rgba(157, 255, 176, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Adding a pulsing highlight effect for items with location links */
+@keyframes pulse-subtle {
+  0% {
+    box-shadow: 0 0 0 0 rgba(157, 255, 176, 0);
+  }
+  70% {
+    box-shadow: 0 0 0 6px rgba(157, 255, 176, 0.1);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(157, 255, 176, 0);
+  }
+}
+
+.itinerary-item:has(.location-link) {
+  animation: pulse-subtle 3s infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes slide-up {
+  from {
+    transform: translateY(30px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@media (max-width: 600px) {
+  .itinerary-display {
+    width: 95%;
+    max-height: 95vh;
+  }
+  
+  .itinerary-display h2 {
+    font-size: 1.5rem;
+    padding: 16px;
+  }
+  
+  .itinerary-item {
+    flex-direction: column;
+    margin-bottom: 20px;
+  }
+  
+  .itinerary-time {
+    margin-bottom: 8px;
+    align-self: flex-start;
+  }
+  
+  .itinerary-details {
+    padding-left: 0;
+    margin-top: 8px;
+  }
+  
+  .itinerary-details h3 {
+    font-size: 1.1rem;
+  }
+  
+  .itinerary-details p {
+    font-size: 0.9rem;
+  }
+} 

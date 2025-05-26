@@ -1,4 +1,8 @@
 import { useState, useRef, useEffect } from 'react';
+import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { auth } from '../firebase';
+import { generateItinerary } from '../services/ItineraryService';
+import ItineraryDisplay from './ItineraryDisplay';
 import '../styles/ExplorePopup.css';
 
 // Activity options categories
@@ -77,6 +81,18 @@ const TimeSelector = ({ startTime, endTime, onStartTimeChange, onEndTimeChange }
   const endMinRef = useRef(null);
   const endAmPmRef = useRef(null);
   
+  // State to track the display values for input fields
+  const [displayValues, setDisplayValues] = useState({
+    startHour: '12',
+    startAmPm: 'AM',
+    endHour: '12',
+    endAmPm: 'PM'
+  });
+  
+  // State to track the input field values separately
+  const [startInputValue, setStartInputValue] = useState('');
+  const [endInputValue, setEndInputValue] = useState('');
+  
   // Convert 24-hour format to 12-hour format
   const to12HourFormat = (hour24) => {
     const hourNum = parseInt(hour24, 10);
@@ -95,20 +111,24 @@ const TimeSelector = ({ startTime, endTime, onStartTimeChange, onEndTimeChange }
     return (hourNum + 12).toString().padStart(2, '0');
   };
   
-  // Get display values for time inputs
-  const getTimeDisplayValues = () => {
+  // Update display values when props change
+  useEffect(() => {
     const startDisplay = to12HourFormat(startTime.hour);
     const endDisplay = to12HourFormat(endTime.hour);
     
-    return {
+    const newDisplayValues = {
       startHour: startDisplay.hour,
       startAmPm: startDisplay.ampm,
       endHour: endDisplay.hour,
       endAmPm: endDisplay.ampm
     };
-  };
+    
+    setDisplayValues(newDisplayValues);
   
-  const displayValues = getTimeDisplayValues();
+    // Update input values when time changes from scroll or click
+    setStartInputValue(`${newDisplayValues.startHour}:${startTime.minute} ${newDisplayValues.startAmPm}`);
+    setEndInputValue(`${newDisplayValues.endHour}:${endTime.minute} ${newDisplayValues.endAmPm}`);
+  }, [startTime, endTime]);
   
   // Set initial scroll position for the time selectors
   useEffect(() => {
@@ -147,7 +167,7 @@ const TimeSelector = ({ startTime, endTime, onStartTimeChange, onEndTimeChange }
       const centerOffset = Math.max(0, index - 1) * 40;
       endAmPmRef.current.scrollTop = centerOffset;
     }
-  }, []);
+  }, [displayValues, startTime.minute, endTime.minute]);
   
   const handleScrollSelect = (ref, values, currentValue, onChange) => {
     if (!ref.current) return;
@@ -172,8 +192,12 @@ const TimeSelector = ({ startTime, endTime, onStartTimeChange, onEndTimeChange }
     
     if (timeType === 'start') {
       onStartTimeChange.hour(hour24);
+      setDisplayValues(prev => ({ ...prev, startHour: hour12 }));
+      setStartInputValue(`${hour12}:${startTime.minute} ${currentAmPm}`);
     } else {
       onEndTimeChange.hour(hour24);
+      setDisplayValues(prev => ({ ...prev, endHour: hour12 }));
+      setEndInputValue(`${hour12}:${endTime.minute} ${currentAmPm}`);
     }
   };
   
@@ -187,14 +211,18 @@ const TimeSelector = ({ startTime, endTime, onStartTimeChange, onEndTimeChange }
     
     if (timeType === 'start') {
       onStartTimeChange.hour(hour24);
+      setDisplayValues(prev => ({ ...prev, startAmPm: newAmPm }));
+      setStartInputValue(`${currentHour12}:${startTime.minute} ${newAmPm}`);
     } else {
       onEndTimeChange.hour(hour24);
+      setDisplayValues(prev => ({ ...prev, endAmPm: newAmPm }));
+      setEndInputValue(`${currentHour12}:${endTime.minute} ${newAmPm}`);
     }
   };
   
   // Handle direct time input
   const handleDirectTimeInput = (e, timeType) => {
-    const timeString = e.target.value;
+    const timeString = timeType === 'start' ? startInputValue : endInputValue;
     const timePattern = /^(\d{1,2}):(\d{2})\s?(AM|PM)$/i;
     
     if (timePattern.test(timeString)) {
@@ -208,11 +236,32 @@ const TimeSelector = ({ startTime, endTime, onStartTimeChange, onEndTimeChange }
       if (timeType === 'start') {
         onStartTimeChange.hour(hour24);
         onStartTimeChange.minute(minute);
+        setDisplayValues(prev => ({ ...prev, startHour: hour12, startAmPm: ampm }));
       } else {
         onEndTimeChange.hour(hour24);
         onEndTimeChange.minute(minute);
+        setDisplayValues(prev => ({ ...prev, endHour: hour12, endAmPm: ampm }));
+      }
+    } else {
+      // If invalid, reset to the current value from state
+      if (timeType === 'start') {
+        setStartInputValue(`${displayValues.startHour}:${startTime.minute} ${displayValues.startAmPm}`);
+      } else {
+        setEndInputValue(`${displayValues.endHour}:${endTime.minute} ${displayValues.endAmPm}`);
       }
     }
+  };
+
+  // Wrapper for start minute changes to also update input field
+  const handleStartMinuteChange = (minute) => {
+    onStartTimeChange.minute(minute);
+    setStartInputValue(`${displayValues.startHour}:${minute} ${displayValues.startAmPm}`);
+  };
+  
+  // Wrapper for end minute changes to also update input field
+  const handleEndMinuteChange = (minute) => {
+    onEndTimeChange.minute(minute);
+    setEndInputValue(`${displayValues.endHour}:${minute} ${displayValues.endAmPm}`);
   };
 
   return (
@@ -223,7 +272,10 @@ const TimeSelector = ({ startTime, endTime, onStartTimeChange, onEndTimeChange }
           type="text" 
           className="time-direct-input"
           placeholder="e.g. 10:30 AM"
-          defaultValue={`${displayValues.startHour}:${startTime.minute} ${displayValues.startAmPm}`}
+          value={startInputValue}
+          onChange={(e) => {
+            setStartInputValue(e.target.value);
+          }}
           onBlur={(e) => handleDirectTimeInput(e, 'start')}
           onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
         />
@@ -247,13 +299,13 @@ const TimeSelector = ({ startTime, endTime, onStartTimeChange, onEndTimeChange }
           <div 
             className="time-scroll minute-scroll" 
             ref={startMinRef}
-            onScroll={() => handleScrollSelect(startMinRef, minutes, startTime.minute, onStartTimeChange.minute)}
+            onScroll={() => handleScrollSelect(startMinRef, minutes, startTime.minute, handleStartMinuteChange)}
           >
             {minutes.map(minute => (
               <div 
                 key={`start-min-${minute}`} 
                 className={`time-item ${minute === startTime.minute ? 'selected' : ''}`}
-                onClick={() => onStartTimeChange.minute(minute)}
+                onClick={() => handleStartMinuteChange(minute)}
               >
                 {minute}
               </div>
@@ -283,7 +335,10 @@ const TimeSelector = ({ startTime, endTime, onStartTimeChange, onEndTimeChange }
           type="text" 
           className="time-direct-input"
           placeholder="e.g. 2:30 PM"
-          defaultValue={`${displayValues.endHour}:${endTime.minute} ${displayValues.endAmPm}`}
+          value={endInputValue}
+          onChange={(e) => {
+            setEndInputValue(e.target.value);
+          }}
           onBlur={(e) => handleDirectTimeInput(e, 'end')}
           onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
         />
@@ -307,13 +362,13 @@ const TimeSelector = ({ startTime, endTime, onStartTimeChange, onEndTimeChange }
           <div 
             className="time-scroll minute-scroll" 
             ref={endMinRef}
-            onScroll={() => handleScrollSelect(endMinRef, minutes, endTime.minute, onEndTimeChange.minute)}
+            onScroll={() => handleScrollSelect(endMinRef, minutes, endTime.minute, handleEndMinuteChange)}
           >
             {minutes.map(minute => (
               <div 
                 key={`end-min-${minute}`} 
                 className={`time-item ${minute === endTime.minute ? 'selected' : ''}`}
-                onClick={() => onEndTimeChange.minute(minute)}
+                onClick={() => handleEndMinuteChange(minute)}
               >
                 {minute}
               </div>
@@ -487,233 +542,281 @@ const ActivitySelector = ({
 };
 
 const ExplorePopup = ({ region, onClose, onSubmit }) => {
-  // State for time selection
-  const [startTime, setStartTime] = useState({
-    hour: '10', // Default to 10:00 AM
-    minute: '00'
-  });
-  
-  const [endTime, setEndTime] = useState({
-    hour: '12', // Default to 12:00 PM
-    minute: '00'
-  });
-  
-  // State for trip type
-  const [tripType, setTripType] = useState('custom'); // 'custom' or 'surprise'
-  const [surpriseType, setSurpriseType] = useState('mainstream'); // 'niche' or 'mainstream'
-  
-  // State for activity selection
-  const [selectedActivities, setSelectedActivities] = useState([]);
+  // Form state
+  const [timeRange, setTimeRange] = useState({ start: '09:00', end: '17:00' });
+  const [tripType, setTripType] = useState('surprise'); // 'surprise' or 'custom'
+  const [surpriseType, setSurpriseType] = useState('popular'); // 'popular' or 'niche'
+  const [activities, setActivities] = useState([]);
   const [customActivity, setCustomActivity] = useState('');
+  const [userPreferences, setUserPreferences] = useState(null);
   
-  // Step navigation state
-  const [currentStep, setCurrentStep] = useState(1);
-  const totalSteps = tripType === 'custom' ? 3 : 2;
+  // Itinerary generation state
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [itineraryData, setItineraryData] = useState(null);
+  const [showItinerary, setShowItinerary] = useState(false);
+  const [generationError, setGenerationError] = useState(null);
   
-  // Ref for the popup content
-  const popupRef = useRef(null);
+  // Show form by default
+  const [showForm, setShowForm] = useState(true);
   
-  // Handle click outside to close
+  // Fetch user preferences when component mounts
   useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (popupRef.current && !popupRef.current.contains(event.target)) {
-        onClose();
+    const fetchUserPreferences = async () => {
+      try {
+        const userId = auth.currentUser?.uid;
+        if (!userId) return;
+        
+        const db = getFirestore();
+        const userDocRef = doc(db, "users", userId);
+        const docSnap = await getDoc(userDocRef);
+        
+        if (docSnap.exists() && docSnap.data().preferences) {
+          setUserPreferences(docSnap.data().preferences);
+        }
+      } catch (error) {
+        console.error("Error fetching user preferences:", error);
       }
     };
     
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => {
-      document.removeEventListener('mousedown', handleClickOutside);
-    };
-  }, [onClose]);
+    fetchUserPreferences();
+  }, []);
   
-  // Navigation handlers
-  const goToNextStep = () => {
-    if (currentStep < totalSteps) {
-      setCurrentStep(currentStep + 1);
-    }
+  const handleTimeChange = (field, value) => {
+    setTimeRange(prev => ({ ...prev, [field]: value }));
   };
   
-  const goToPreviousStep = () => {
-    if (currentStep > 1) {
-      setCurrentStep(currentStep - 1);
-    }
-  };
-  
-  // Handlers for time changes
-  const handleStartHourChange = (hour) => {
-    setStartTime(prev => ({ ...prev, hour }));
-  };
-  
-  const handleStartMinuteChange = (minute) => {
-    setStartTime(prev => ({ ...prev, minute }));
-  };
-  
-  const handleEndHourChange = (hour) => {
-    setEndTime(prev => ({ ...prev, hour }));
-  };
-  
-  const handleEndMinuteChange = (minute) => {
-    setEndTime(prev => ({ ...prev, minute }));
-  };
-  
-  // Handler for trip type change
   const handleTripTypeChange = (type) => {
     setTripType(type);
   };
   
-  // Handler for surprise type change
   const handleSurpriseTypeChange = (type) => {
     setSurpriseType(type);
   };
   
-  // Handler for toggling activities
   const handleActivityToggle = (activity) => {
-    setSelectedActivities(prev => 
+    setActivities(prev => 
       prev.includes(activity)
-        ? prev.filter(a => a !== activity)
+        ? prev.filter(item => item !== activity)
         : [...prev, activity]
     );
   };
   
-  // Handler for custom activity change
-  const handleCustomActivityChange = (text) => {
-    setCustomActivity(text);
-  };
-  
-  // Handler for form submission
-  const handleSubmit = () => {
+  const handleSubmit = async (e) => {
+    if (e) e.preventDefault();
+    
+    // Don't allow multiple submissions
+    if (isGenerating) {
+      return;
+    }
+    
+    // Validate time range
+    if (!timeRange.start || !timeRange.end) {
+      console.error("Time range is missing start or end time");
+      setGenerationError("Please select a start and end time.");
+      return;
+    }
+    
+    // Prepare form data
     const formData = {
       region,
-      timeRange: {
-        start: `${startTime.hour}:${startTime.minute}`,
-        end: `${endTime.hour}:${endTime.minute}`
-      },
+      timeRange,
       tripType,
-      surpriseType: tripType === 'surprise' ? surpriseType : null,
-      activities: selectedActivities,
-      customActivity: customActivity.trim() || null
+      surpriseType,
+      activities,
+      customActivity,
+      allActivityCategories: ACTIVITY_CATEGORIES // Send all activity categories to the backend
     };
     
-    onSubmit(formData);
+    // Call the parent component's onSubmit function
+    if (onSubmit) {
+      onSubmit(formData);
+    }
+    
+    try {
+      // Start generating the itinerary
+      setIsGenerating(true);
+      setGenerationError(null);
+      
+      // Generate the itinerary using the ItineraryService
+      console.log("Calling generateItinerary with formData:", formData);
+      const result = await generateItinerary(formData, userPreferences);
+      
+      // Log the result for debugging
+      console.log("Received itinerary result:", result);
+      
+      // Set the itinerary data and show the itinerary display
+      setItineraryData(result);
+      setShowItinerary(true);
+      console.log("Updated itineraryData state:", result);
+      
+    } catch (error) {
+      console.error("Error generating itinerary:", error);
+      setGenerationError("Failed to generate your itinerary. Please try again.");
+      
+      // Create a simple error itinerary
+      setItineraryData({
+        raw: "Sorry, we couldn't generate your itinerary at this time. This might be due to API limitations or network issues. Please try again later.",
+        items: []
+      });
+      setShowItinerary(true);
+      
+    } finally {
+      setIsGenerating(false);
+    }
   };
   
-  // Render step content based on currentStep
-  const renderStepContent = () => {
-    switch(currentStep) {
-      case 1:
-        return (
-          <div className="popup-section">
-            <h3>Select Time Duration</h3>
-            <TimeSelector
-              startTime={startTime}
-              endTime={endTime}
-              onStartTimeChange={{
-                hour: handleStartHourChange,
-                minute: handleStartMinuteChange
-              }}
-              onEndTimeChange={{
-                hour: handleEndHourChange,
-                minute: handleEndMinuteChange
-              }}
-            />
-          </div>
-        );
-      case 2:
-        return (
-          <div className="popup-section">
-            <h3>Choose Trip Type</h3>
-            <TripTypeSelector 
-              tripType={tripType} 
-              onTripTypeChange={handleTripTypeChange}
-              surpriseType={surpriseType}
-              onSurpriseTypeChange={handleSurpriseTypeChange}
-            />
-          </div>
-        );
-      case 3:
-        return (
-          <div className="popup-section">
-            <h3>What Do You Want To Do?</h3>
-            <p className="section-hint">Select all that apply</p>
-            <ActivitySelector 
-              selectedActivities={selectedActivities}
-              onActivityToggle={handleActivityToggle}
-              customActivity={customActivity}
-              onCustomActivityChange={handleCustomActivityChange}
-              tripPreference={tripType}
-              onTripPreferenceChange={handleTripTypeChange}
-            />
-          </div>
-        );
-      default:
-        return null;
-    }
+  const handleCloseItinerary = () => {
+    setShowItinerary(false);
+    setItineraryData(null);
+    onClose();
   };
 
   return (
-    <div className="explore-popup-overlay">
-      <div className="explore-popup" ref={popupRef}>
-        <button className="close-button" onClick={onClose}>×</button>
-        
-        <h2>Plan Your Adventure</h2>
-        {region.type === 'circle' && (
-          <p className="region-info">
-            Area: {(Math.PI * Math.pow(region.radius / 1000, 2)).toFixed(2)} sq km
-          </p>
-        )}
-        
-        <div className="step-indicator">
-          {Array.from({length: totalSteps}, (_, i) => (
-            <div 
-              key={i + 1} 
-              className={`step-dot ${currentStep === i + 1 ? 'active' : ''} ${currentStep > i + 1 ? 'completed' : ''}`}
-            />
-          ))}
-        </div>
-        
-        {renderStepContent()}
-        
-        <div className="navigation-controls">
-          {currentStep > 1 && (
-            <button 
-              className="nav-button prev-button" 
-              onClick={goToPreviousStep}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                <path d="M15.41 7.41L14 6l-6 6 6 6 1.41-1.41L10.83 12z"/>
-              </svg>
-              Previous
-            </button>
-          )}
+    <>
+      {/* Show form when not generating or displaying itinerary */}
+      {!isGenerating && !showItinerary && (
+        <div className="explore-popup-overlay" onClick={onClose}>
+          <div className="explore-popup" onClick={(e) => e.stopPropagation()}>
+            <button className="close-button" onClick={onClose}>×</button>
           
-          {currentStep < totalSteps ? (
-            <button 
-              className="nav-button next-button" 
-              onClick={goToNextStep}
-            >
-              Next
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                <path d="M10 6L8.59 7.41 13.17 12l-4.58 4.59L10 18l6-6z"/>
-              </svg>
-            </button>
-          ) : (
-            <button className="create-plan-button" onClick={handleSubmit}>
-              <span className="ai-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                  <path d="M21 10.975V8a2 2 0 0 0-2-2h-6V4.688c.305-.274.5-.668.5-1.11a1.5 1.5 0 0 0-3 0c0 .442.195.836.5 1.11V6H5a2 2 0 0 0-2 2v2.975A3.5 3.5 0 0 0 2 13.5a3.5 3.5 0 0 0 1 2.45V19a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-3.05a3.5 3.5 0 0 0 1-2.45 3.5 3.5 0 0 0-1-2.525zM5 13.5a1.5 1.5 0 1 1 3 0 1.5 1.5 0 0 1-3 0zm7 6a4 4 0 1 1 0-8 4 4 0 0 1 0 8zm7-6a1.5 1.5 0 1 1-3 0 1.5 1.5 0 0 1 3 0zm-7 2a2 2 0 1 0 0-4 2 2 0 0 0 0 4z"/>
-                </svg>
-              </span>
-              Create Plan
-            </button>
-          )}
+            <h2>Create Your Adventure</h2>
+            
+            <form onSubmit={handleSubmit}>
+              <div className="form-section">
+                <h3>When do you want to explore?</h3>
+                <div className="time-range">
+                  <div className="time-input">
+                    <label htmlFor="start-time">Start Time</label>
+                    <input
+                      type="time"
+                      id="start-time"
+                      value={timeRange.start}
+                      onChange={(e) => handleTimeChange('start', e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="time-input">
+                    <label htmlFor="end-time">End Time</label>
+                    <input
+                      type="time"
+                      id="end-time"
+                      value={timeRange.end}
+                      onChange={(e) => handleTimeChange('end', e.target.value)}
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <div className="form-section">
+                <h3>What type of adventure do you want?</h3>
+                <div className="trip-type-options">
+                  <div 
+                    className={`trip-type-option ${tripType === 'custom' ? 'selected' : ''}`}
+                    onClick={() => handleTripTypeChange('custom')}
+                  >
+                    <div className="trip-type-icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
+                      </svg>
+                    </div>
+                    <div className="trip-type-details">
+                      <h4>Custom Trip</h4>
+                      <p>Choose activities and locations based on your preferences</p>
+                    </div>
+                  </div>
+                  
+                  <div 
+                    className={`trip-type-option ${tripType === 'surprise' ? 'selected' : ''}`}
+                    onClick={() => handleTripTypeChange('surprise')}
+                  >
+                    <div className="trip-type-icon">
+                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                        <path d="M16 6.5l3 5.5-3 5.5H8l-3-5.5L8 6.5h8M16 4H8c-.77 0-1.47.39-1.88 1.08l-3 5.5c-.41.69-.41 1.65 0 2.34l3 5.5c.41.69 1.11 1.08 1.88 1.08h8c.77 0 1.47-.39 1.88-1.08l3-5.5c.41-.69.41-1.65 0-2.34l-3-5.5C17.47 4.39 16.77 4 16 4z"/>
+                        <path d="M12 17.5c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5-1.5.67-1.5 1.5.67 1.5 1.5 1.5zM13.5 12V7h-3v1h2v4h1z"/>
+                      </svg>
+                    </div>
+                    <div className="trip-type-details">
+                      <h4>Surprise Me</h4>
+                      <p>Get a randomly generated itinerary tailored to this area</p>
+                    </div>
+                  </div>
+                </div>
+                
+                {tripType === 'surprise' && (
+                  <div className="surprise-type-selector">
+                    <label>I prefer:</label>
+                    <div className="surprise-options">
+                      <div className="surprise-option">
+                        <input
+                          type="radio"
+                          id="popular"
+                          name="surprise-type"
+                          checked={surpriseType === 'popular'}
+                          onChange={() => handleSurpriseTypeChange('popular')}
+                        />
+                        <label htmlFor="popular">Popular attractions</label>
+                      </div>
+                      <div className="surprise-option">
+                        <input
+                          type="radio"
+                          id="niche"
+                          name="surprise-type"
+                          checked={surpriseType === 'niche'}
+                          onChange={() => handleSurpriseTypeChange('niche')}
+                        />
+                        <label htmlFor="niche">Off the beaten path</label>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+              
+              {tripType === 'custom' && (
+                <ActivitySelector 
+                  selectedActivities={activities} 
+                  onActivityToggle={handleActivityToggle}
+                  customActivity={customActivity}
+                  onCustomActivityChange={setCustomActivity}
+                  tripPreference={tripType}
+                  onTripPreferenceChange={handleTripTypeChange}
+                />
+              )}
+              
+              <div className="form-actions">
+                <button type="button" className="cancel-button" onClick={onClose}>
+                  Cancel
+                </button>
+                <button type="submit" className="generate-button" disabled={isGenerating}>
+                  {isGenerating ? 'Generating...' : 'Generate Itinerary'}
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
-        
-        {currentStep === totalSteps && (
-          <p className="submit-hint"></p>
-        )}
-      </div>
-    </div>
+      )}
+      
+      {/* Show loading overlay when generating itinerary */}
+      {isGenerating && (
+        <div className="adventure-loading-overlay">
+          <div className="adventure-loading-container">
+            <div className="adventure-loading-spinner"></div>
+            <h3 className="adventure-loading-text">Building your adventure</h3>
+            <p className="adventure-loading-subtext">
+              Exploring the area and finding the perfect spots for you...
+            </p>
+          </div>
+        </div>
+      )}
+      
+      {/* Show itinerary display when data is available */}
+      {showItinerary && itineraryData && (
+        <ItineraryDisplay 
+          itinerary={itineraryData} 
+          onClose={handleCloseItinerary} 
+        />
+      )}
+    </>
   );
 };
 

@@ -259,12 +259,6 @@ const Dashboard = () => {
   const handleExploreSubmit = (formData) => {
     console.log("Explore form submitted:", formData);
     
-    // TODO: Process the form data and generate an itinerary
-    // This will be implemented in a future phase
-    
-    // For now, just show an alert with the data
-    alert(`Your TouchGrass adventure is being created!\nSelected time: ${formData.timeRange.start} - ${formData.timeRange.end}\nActivities: ${formData.activities.join(', ')}\n${formData.customActivity ? `Custom: ${formData.customActivity}` : ''}`);
-    
     // Close the popup
     setShowExplorePopup(false);
     
