@@ -1123,7 +1123,7 @@ textarea:focus-visible,
   z-index: 10;
   padding: 32px;
   border: none;
-  overflow-y: auto;
+  overflow: hidden; /* Changed from overflow-y: auto to prevent scrolling */
 }
 
 .dashboard-sidebar-overlay h2 {
@@ -1409,11 +1409,34 @@ textarea:focus-visible,
 }
 
 .drawing-instructions {
-  font-size: 0.8rem;
-  font-weight: normal;
-  opacity: 0.9;
-  margin-left: 8px;
-  color: #e0fff0;
+  position: absolute;
+  top: 80px;
+  left: 50%;
+  transform: translateX(-50%);
+  background-color: rgba(0, 18, 8, 0.8);
+  border: 1px solid rgba(157, 255, 176, 0.3);
+  border-radius: 8px;
+  color: var(--mint-green);
+  padding: 8px 16px;
+  font-size: 0.9rem;
+  text-align: center;
+  z-index: 2;
+  animation: fade-in 0.3s ease-out;
+}
+
+.drawing-instructions.confirm-instructions {
+  top: auto;
+  bottom: 80px;
+  background-color: rgba(0, 18, 8, 0.9);
+  border: 1px solid rgba(157, 255, 176, 0.4);
+  padding: 10px 20px;
+  font-weight: 500;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  animation: pulse-outline 2s infinite;
+}
+
+.drawing-instructions p {
+  margin: 0;
 }
 
 @keyframes pulse-outline {
@@ -1586,12 +1609,22 @@ textarea:focus-visible,
 .destination-search-container {
   position: relative;
   width: 100%;
-  margin-bottom: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.search-input-wrapper {
+  position: relative;
+  width: 100%;
+  margin-bottom: 4px;
 }
 
 .destination-search-input {
   width: 100%;
   padding: 12px 16px;
+  padding-right: 40px; /* Space for clear button */
   border-radius: 20px;
   border: 1px solid #9dffb0;
   background-color: rgba(0, 24, 10, 0.85);
@@ -1609,27 +1642,42 @@ textarea:focus-visible,
   color: rgba(224, 255, 232, 0.6);
 }
 
-.go-to-button {
-  width: 100%;
-  padding: 12px 16px;
-  margin-top: 8px;
-  border-radius: 20px;
-  border: 1px solid #9dffb0;
-  background-color: #9dffb0;
-  color: #001208;
-  font-size: 1rem;
-  font-weight: 500;
+.clear-search-btn {
+  position: absolute;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: rgba(157, 255, 176, 0.7);
+  font-size: 1.2rem;
+  font-weight: bold;
   cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
   transition: all 0.2s ease;
 }
 
-.go-to-button:hover {
-  background-color: #b3ffc1;
-  transform: translateY(-1px);
+.clear-search-btn:hover {
+  color: #9dffb0;
+  background-color: rgba(157, 255, 176, 0.1);
 }
 
-.go-to-button:active {
-  transform: translateY(0);
+.search-loading {
+  color: #9dffb0;
+  margin-top: 4px;
+  font-size: 0.9rem;
+}
+
+.search-error {
+  color: #ff5757;
+  margin-top: 4px;
+  font-size: 0.9rem;
 }
 
 .destination-suggestions {
@@ -1642,7 +1690,7 @@ textarea:focus-visible,
   border-radius: 12px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
   margin-top: 4px;
-  z-index: 1000;
+  z-index: 1010;
   max-height: 300px;
   overflow-y: auto;
 }
@@ -1658,45 +1706,51 @@ textarea:focus-visible,
   background-color: rgba(157, 255, 176, 0.1);
 }
 
-/* Enhanced Region Confirmation Message */
-.region-confirmation-message {
-  margin: 12px 0;
-  padding: 12px 16px;
-  background-color: rgba(157, 255, 176, 0.15);
-  border: 1px solid rgba(157, 255, 176, 0.3);
-  border-radius: 8px;
-  color: #9dffb0;
-  text-align: center;
-  font-size: 1rem;
-  font-weight: 500;
-  animation: pulse-outline 2s infinite;
-  position: relative;
+.popular-destinations-container {
+  margin-top: 0;
+  margin-bottom: 12px;
+  padding: 16px;
+  background-color: rgba(0, 24, 10, 0.5);
+  border-radius: 12px;
+  border: 1px solid rgba(157, 255, 176, 0.1);
+  height: 320px; /* Reduced height to prevent scrolling in panel */
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 
-.region-confirmation-message::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    rgba(157, 255, 176, 0.25),
-    transparent
-  );
-  animation: shimmer 1.5s infinite;
+.popular-destinations-container h4 {
+  color: #9dffb0;
+  margin: 0 0 12px 0;
+  font-size: 1.1rem;
+  flex-shrink: 0;
 }
 
-@keyframes shimmer {
-  0% {
-    left: -100%;
-  }
-  100% {
-    left: 100%;
-  }
+.popular-destinations-message {
+  color: #e0ffe8;
+  font-size: 0.95rem;
+  opacity: 0.8;
+  line-height: 1.4;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.popular-places-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  flex: 1;
+  overflow-y: auto;
+}
+
+.drawing-tools-panel {
+  margin-top: 8px; /* Reduced margin */
+  padding-top: 12px; /* Reduced padding */
+  border-top: 1px solid rgba(157, 255, 176, 0.1);
+  flex-shrink: 0;
 }
 
 /* API Error Message Styling */
@@ -1708,6 +1762,8 @@ textarea:focus-visible,
   color: #ff9e9e;
   font-size: 0.9rem;
   line-height: 1.5;
+  overflow-y: auto;
+  max-height: 180px;
 }
 
 .popular-destinations-error p {
@@ -1749,42 +1805,7 @@ textarea:focus-visible,
   transform: translateY(0);
 }
 
-/* Ensure any lists have proper styling */
-.destination-suggestions,
-.popular-places-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-}
-
-.popular-destinations-container {
-  margin-top: 16px;
-  padding: 16px;
-  background-color: rgba(0, 24, 10, 0.5);
-  border-radius: 12px;
-  border: 1px solid rgba(157, 255, 176, 0.1);
-}
-
-.popular-destinations-container h4 {
-  color: #9dffb0;
-  margin: 0 0 12px 0;
-  font-size: 1.1rem;
-}
-
-.popular-destinations-message {
-  color: #e0ffe8;
-  font-size: 0.95rem;
-  opacity: 0.8;
-  line-height: 1.4;
-}
-
 /* Popular Places List Styles */
-.popular-places-list {
-  list-style: none;
-  padding: 0;
-  margin: 8px 0 0 0;
-}
-
 .popular-place-item {
   padding: 12px;
   margin-bottom: 8px;
@@ -1811,4 +1832,67 @@ textarea:focus-visible,
   color: #e0ffe8;
   font-size: 0.85rem;
   opacity: 0.9;
+}
+
+/* Recent Searches Styles */
+.recent-searches {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background-color: #001208;
+  border: 1px solid rgba(157, 255, 176, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  margin-top: 4px;
+  z-index: 1010;
+  max-height: 300px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 0;
+}
+
+.recent-searches-header {
+  color: rgba(157, 255, 176, 0.6);
+  font-size: 0.8rem;
+  padding: 8px 16px;
+  border-bottom: 1px solid rgba(157, 255, 176, 0.1);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.recent-search-item {
+  padding: 10px 16px;
+  cursor: pointer;
+  color: #9dffb0;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.recent-search-item:hover {
+  background-color: rgba(157, 255, 176, 0.1);
+}
+
+.recent-search-item svg {
+  opacity: 0.7;
+}
+
+/* Destination suggestions styles */
+.destination-suggestions {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  background-color: #001208;
+  border: 1px solid rgba(157, 255, 176, 0.2);
+  border-radius: 12px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  margin-top: 4px;
+  z-index: 1010; /* Higher z-index to ensure it appears above the popular places container */
+  max-height: 300px;
+  overflow-y: auto;
+  list-style: none;
+  padding: 0;
 } 

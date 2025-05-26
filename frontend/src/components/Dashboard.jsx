@@ -39,6 +39,9 @@ const Dashboard = () => {
   const [autocompleteSuggestions, setAutocompleteSuggestions] = useState([]);
   const [autocompleteLoading, setAutocompleteLoading] = useState(false);
   const [autocompleteError, setAutocompleteError] = useState(null);
+  const [recentSearches, setRecentSearches] = useState([]);
+  const [showRecentSearches, setShowRecentSearches] = useState(false);
+  const searchInputRef = useRef(null);
 
   const handleMapLoadStateChange = useCallback(({ isLoaded, loadError }) => {
     setMapScriptLoaded(isLoaded);
@@ -194,7 +197,7 @@ const Dashboard = () => {
     setShowSideNav(false);
   };
 
-  // Close dropdown when clicking outside
+  // Update the useEffect to handle clicks outside the search bar
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showProfileDropdown && !event.target.closest('.user-info')) {
@@ -204,6 +207,12 @@ const Dashboard = () => {
       if (showSideNav && !event.target.closest('.navbar-menu') && !event.target.closest('.hamburger-menu')) {
         setShowSideNav(false);
       }
+
+      // Hide search suggestions and recent searches when clicking outside
+      if (!event.target.closest('.search-input-wrapper')) {
+        setAutocompleteSuggestions([]);
+        setShowRecentSearches(false);
+      }
     };
 
     document.addEventListener('click', handleClickOutside);
@@ -212,13 +221,23 @@ const Dashboard = () => {
     };
   }, [showProfileDropdown, showSideNav]);
 
-  // Handler for when a region is selected
+  // Update the MapComponent's onRegionSelect handler to clear popular places
   const handleRegionSelect = (regionData) => {
     console.log("Region selected:", regionData);
-    setSelectedRegion(regionData);
-    // Show a temporary message about pressing Enter to confirm
-    setShowConfirmHint(true);
-    setTimeout(() => setShowConfirmHint(false), 5000);
+    
+    // Clear previous places when selecting a new region
+    setPopularPlaces([]);
+    
+    if (regionData) {
+      setSelectedRegion(regionData);
+      // Show a subtle notification at the top instead of the bottom
+      if (drawingMode) {
+        setShowConfirmHint(true);
+        setTimeout(() => setShowConfirmHint(false), 5000);
+      }
+    } else {
+      setSelectedRegion(null);
+    }
   };
   
   // Handler for explore button click
@@ -337,6 +356,16 @@ const Dashboard = () => {
     fetchPopularPlaces();
   }, [confirmedRegion, mapScriptLoaded]);
 
+  // Handle clear region
+  const handleClearRegion = () => {
+    setSelectedRegion(null);
+    setConfirmedRegion(null);
+    setDrawingMode(null);
+    setPopularPlaces([]);
+    setPlacesApiError(false);
+    setShowConfirmHint(false);
+  };
+
   // Set drawing mode
   const handleSetDrawingMode = (mode) => {
     setDrawingMode(mode);
@@ -355,19 +384,19 @@ const Dashboard = () => {
   // Add this new effect for handling Enter key
   useEffect(() => {
     const handleKeyPress = (e) => {
-      if (e.key === 'Enter' && drawingMode && selectedRegion) {
+      if (e.key === 'Enter' && selectedRegion) {
         console.log("Enter pressed - confirming region:", selectedRegion);
         setConfirmedRegion(selectedRegion);
         setDrawingMode(null); // Exit drawing mode
         
-        // Show confirmation message
+        // Remove the confirmation message
         setShowConfirmHint(false);
       }
     };
 
     window.addEventListener('keypress', handleKeyPress);
     return () => window.removeEventListener('keypress', handleKeyPress);
-  }, [drawingMode, selectedRegion]);
+  }, [selectedRegion]);
 
   const handleGoToPlace = () => {
     if (selectedPlace && mapRef.current) {
@@ -395,20 +424,49 @@ const Dashboard = () => {
     );
   };
 
-  // New function to fetch autocomplete suggestions from Places API (New)
+  // New function to add a recent search
+  const addRecentSearch = (search) => {
+    // Don't add empty searches
+    if (!search.trim()) return;
+    
+    // Add to the beginning and remove duplicates
+    setRecentSearches(prevSearches => {
+      const newSearches = [search, ...prevSearches.filter(s => s !== search)];
+      // Keep only the 5 most recent searches
+      return newSearches.slice(0, 5);
+    });
+  };
+
+  // Function to handle click on a recent search
+  const handleRecentSearchClick = (search) => {
+    setAutocompleteValue(search);
+    setShowRecentSearches(false);
+    fetchAutocompleteSuggestions(search);
+  };
+
+  // New function to clear search
+  const clearSearch = () => {
+    setAutocompleteValue("");
+    setAutocompleteSuggestions([]);
+  };
+
+  // Update the fetchAutocompleteSuggestions function
   const fetchAutocompleteSuggestions = async (input) => {
-    if (!input) {
+    if (!input || !input.trim()) {
       setAutocompleteSuggestions([]);
       return;
     }
+    
     setAutocompleteLoading(true);
     setAutocompleteError(null);
+    
     const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
     const url = `https://places.googleapis.com/v1/places:autocomplete?key=${apiKey}`;
     const body = {
       input,
       languageCode: 'en'
     };
+    
     try {
       const response = await fetch(url, {
         method: "POST",
@@ -418,6 +476,7 @@ const Dashboard = () => {
         },
         body: JSON.stringify(body)
       });
+      
       if (!response.ok) {
         const errorText = await response.text();
         setAutocompleteError(errorText);
@@ -425,6 +484,7 @@ const Dashboard = () => {
         setAutocompleteLoading(false);
         return;
       }
+      
       const data = await response.json();
       setAutocompleteSuggestions(data.suggestions || []);
       setAutocompleteLoading(false);
@@ -435,124 +495,161 @@ const Dashboard = () => {
     }
   };
 
-  // Debounced effect for autocomplete
+  // Modify debounced effect for autocomplete
   useEffect(() => {
-    const handler = setTimeout(() => {
-      fetchAutocompleteSuggestions(autocompleteValue);
-    }, 300);
-    return () => clearTimeout(handler);
+    // Only fetch if there's input text
+    if (autocompleteValue.trim()) {
+      const handler = setTimeout(() => {
+        fetchAutocompleteSuggestions(autocompleteValue);
+      }, 300);
+      return () => clearTimeout(handler);
+    } else {
+      setAutocompleteSuggestions([]);
+    }
   }, [autocompleteValue]);
 
   const renderSearchAndPopular = () => {
     return (
       <div className="destination-search-container">
-        <input
-          value={autocompleteValue}
-          onChange={e => setAutocompleteValue(e.target.value)}
-          placeholder="Search for a destination..."
-          className="destination-search-input"
-        />
-        {autocompleteLoading && <div style={{ color: '#9dffb0', marginTop: 4 }}>Loading...</div>}
-        {autocompleteError && <div style={{ color: '#ff5757', marginTop: 4 }}>{autocompleteError}</div>}
-        {autocompleteSuggestions.length > 0 && (
-          <ul className="destination-suggestions">
-            {autocompleteSuggestions.map((suggestion) => {
-              const pred = suggestion.placePrediction;
-              if (!pred) return null;
-              return (
-                <li
-                  key={pred.placeId}
-                  onClick={async () => {
-                    setAutocompleteSuggestions([]);
-                    setAutocompleteLoading(true);
-                    setAutocompleteError(null);
-                    setAutocompleteValue(pred.structuredFormat?.mainText?.text || pred.text?.text || '');
-                    // Fetch place details to get location
-                    try {
-                      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-                      const url = `https://places.googleapis.com/v1/places/${pred.placeId}?key=${apiKey}`;
-                      const response = await fetch(url, {
-                        method: "GET",
-                        headers: {
-                          "Content-Type": "application/json",
-                          "X-Goog-FieldMask": "location"
-                        }
-                      });
-                      if (response.ok) {
-                        const data = await response.json();
-                        if (data.location && mapRef.current) {
-                          const { latitude, longitude } = data.location;
-                          mapRef.current.panTo({ lat: latitude, lng: longitude });
-                          mapRef.current.setZoom(15);
-                        }
-                      }
-                    } catch (err) {
-                      setAutocompleteError("Could not pan to place location.");
-                    } finally {
-                      setAutocompleteLoading(false);
-                    }
-                  }}
+        <div className="search-input-wrapper">
+          <input
+            ref={searchInputRef}
+            value={autocompleteValue}
+            onChange={e => setAutocompleteValue(e.target.value)}
+            onFocus={() => {
+              if (recentSearches.length > 0 && !autocompleteValue.trim()) {
+                setShowRecentSearches(true);
+              }
+            }}
+            placeholder="Search for a destination..."
+            className="destination-search-input"
+          />
+          {autocompleteValue && (
+            <button 
+              className="clear-search-btn" 
+              onClick={clearSearch}
+              aria-label="Clear search"
+            >
+              ×
+            </button>
+          )}
+          {/* Show recent searches if available and no search results */}
+          {showRecentSearches && recentSearches.length > 0 && !autocompleteSuggestions.length && (
+            <ul className="recent-searches">
+              <li className="recent-searches-header">Recent Searches</li>
+              {recentSearches.map((search, index) => (
+                <li 
+                  key={`recent-${index}`} 
+                  onClick={() => handleRecentSearchClick(search)}
+                  className="recent-search-item"
                 >
-                  <div>
-                    <strong>{pred.structuredFormat?.mainText?.text || pred.text?.text}</strong>
-                    {pred.structuredFormat?.secondaryText?.text && (
-                      <div style={{ fontSize: '0.9em', color: '#b0ffb0' }}>
-                        {pred.structuredFormat.secondaryText.text}
-                      </div>
-                    )}
-                  </div>
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
+                    <path d="M13 3c-4.97 0-9 4.03-9 9H1l3.89 3.89.07.14L9 12H6c0-3.87 3.13-7 7-7s7 3.13 7 7-3.13 7-7 7c-1.93 0-3.68-.79-4.94-2.06l-1.42 1.42C8.27 19.99 10.51 21 13 21c4.97 0 9-4.03 9-9s-4.03-9-9-9zm-1 5v5l4.28 2.54.72-1.21-3.5-2.08V8H12z"/>
+                  </svg>
+                  {search}
                 </li>
-              );
-            })}
-          </ul>
-        )}
+              ))}
+            </ul>
+          )}
+          {/* Show error message */}
+          {autocompleteError && <div className="search-error">{autocompleteError}</div>}
+          {/* Show search suggestions */}
+          {autocompleteSuggestions.length > 0 && (
+            <ul className="destination-suggestions">
+              {autocompleteSuggestions.map((suggestion) => {
+                const pred = suggestion.placePrediction;
+                if (!pred) return null;
+                return (
+                  <li
+                    key={pred.placeId}
+                    onClick={async () => {
+                      const suggestionText = pred.structuredFormat?.mainText?.text || pred.text?.text || '';
+                      
+                      // Add to recent searches
+                      addRecentSearch(suggestionText);
+                      
+                      // Clear search and suggestions immediately
+                      setAutocompleteSuggestions([]);
+                      setAutocompleteValue("");
+                      setAutocompleteLoading(true);
+                      
+                      try {
+                        const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
+                        const url = `https://places.googleapis.com/v1/places/${pred.placeId}?key=${apiKey}`;
+                        const response = await fetch(url, {
+                          method: "GET",
+                          headers: {
+                            "Content-Type": "application/json",
+                            "X-Goog-FieldMask": "location"
+                          }
+                        });
+                        if (response.ok) {
+                          const data = await response.json();
+                          if (data.location && mapRef.current) {
+                            const { latitude, longitude } = data.location;
+                            mapRef.current.panTo({ lat: latitude, lng: longitude });
+                            mapRef.current.setZoom(15);
+                          }
+                        }
+                      } catch (err) {
+                        setAutocompleteError("Could not pan to place location.");
+                      } finally {
+                        setAutocompleteLoading(false);
+                      }
+                    }}
+                  >
+                    <div>
+                      <strong>{pred.structuredFormat?.mainText?.text || pred.text?.text}</strong>
+                      {pred.structuredFormat?.secondaryText?.text && (
+                        <div style={{ fontSize: '0.9em', color: '#b0ffb0' }}>
+                          {pred.structuredFormat.secondaryText.text}
+                        </div>
+                      )}
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
         
-        {showConfirmHint && selectedRegion && !confirmedRegion && (
-          <div className="region-confirmation-message">
-            Press Enter to confirm this region and find popular places
-          </div>
-        )}
-        
-        {confirmedRegion && (
-          <div className="popular-destinations-container">
-            <h4>Popular Places in Selected Region</h4>
-            {loadingPlaces ? (
-              <div className="popular-destinations-message">
-                Finding popular destinations...
-              </div>
-            ) : placesApiError ? (
-              <div className="popular-destinations-error">
-                <p>Unable to load popular places. This may be due to:</p>
-                <ul>
-                  <li>API usage limits</li>
-                  <li>Places API not enabled in your Google Cloud Console</li>
-                </ul>
-                <p>Please check your API configuration and ensure the Places API is enabled.</p>
-                <button 
-                  className="retry-places-button"
-                  onClick={() => {
-                    setPlacesApiError(false);
-                    setLoadingPlaces(true);
-                    // Re-trigger the useEffect by "re-confirming" the region
-                    const currentRegion = confirmedRegion;
-                    setConfirmedRegion(null);
-                    setTimeout(() => setConfirmedRegion(currentRegion), 100);
-                  }}
-                >
-                  Retry
-                </button>
-              </div>
-            ) : popularPlaces.length > 0 ? (
-              <ul className="popular-places-list">
-                {popularPlaces.map(place => renderPopularPlace(place))}
+        <div className="popular-destinations-container">
+          <h4>Popular Places</h4>
+          {loadingPlaces ? (
+            <div className="popular-destinations-message">
+              Finding popular destinations...
+            </div>
+          ) : placesApiError ? (
+            <div className="popular-destinations-error">
+              <p>Unable to load popular places. This may be due to:</p>
+              <ul>
+                <li>API usage limits</li>
+                <li>Places API not enabled in your Google Cloud Console</li>
               </ul>
-            ) : (
-              <div className="popular-destinations-message">
-                No popular destinations found in this area. Try selecting a different region.
-              </div>
-            )}
-          </div>
-        )}
+              <p>Please check your API configuration and ensure the Places API is enabled.</p>
+              <button 
+                className="retry-places-button"
+                onClick={() => {
+                  setPlacesApiError(false);
+                  setLoadingPlaces(true);
+                  // Re-trigger the useEffect by "re-confirming" the region
+                  const currentRegion = confirmedRegion;
+                  setConfirmedRegion(null);
+                  setTimeout(() => setConfirmedRegion(currentRegion), 100);
+                }}
+              >
+                Retry
+              </button>
+            </div>
+          ) : popularPlaces.length > 0 ? (
+            <ul className="popular-places-list">
+              {popularPlaces.map(place => renderPopularPlace(place))}
+            </ul>
+          ) : (
+            <div className="popular-destinations-message">
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -729,21 +826,6 @@ const Dashboard = () => {
           <h2>Explore</h2>
           {renderSearchAndPopular()}
           <div className="sidebar-spacer" style={{ flex: 1 }} />
-          
-          {drawingMode && selectedRegion && (
-            <div style={{ 
-              color: '#9dffb0', 
-              textAlign: 'center', 
-              fontSize: '0.9rem', 
-              marginTop: '10px', 
-              marginBottom: '10px',
-              padding: '8px',
-              backgroundColor: 'rgba(157, 255, 176, 0.1)',
-              borderRadius: '8px'
-            }}>
-              Press Enter to finalize region for popular places
-            </div>
-          )}
 
           <div className="drawing-tools-panel">
             <div className="drawing-tool-container" onClick={() => handleSetDrawingMode('circle')}>

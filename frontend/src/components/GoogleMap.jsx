@@ -446,7 +446,7 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
     setShowExploreButton(false);
     setPolygonPath([]);
     
-    // Notify parent component
+    // Notify parent component with null to indicate clearing
     if (onRegionSelect) {
       onRegionSelect(null);
     }
@@ -673,6 +673,13 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
       </GoogleMap>
       
       {isMapLoaded && renderMapControls()}
+      
+      {/* Confirmation instruction for selected region */}
+      {selectedRegion && (drawingMode || polygonPath.length > 0) && (
+        <div className="drawing-instructions confirm-instructions">
+          <p>Press Enter to confirm selection</p>
+        </div>
+      )}
       
       {/* Explore button */}
       {showExploreButton && (
