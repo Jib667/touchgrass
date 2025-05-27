@@ -84,8 +84,8 @@ const createGeminiPrompt = (formData, groupedPlaces) => {
   const { timeRange, tripType, surpriseType, activities, customActivity, allActivityCategories } = formData;
   
   // Format start and end times for better readability
-  const startTime = timeRange.start;
-  const endTime = timeRange.end;
+  const startTime = formatTimeRangeToAMPM(timeRange.start);
+  const endTime = formatTimeRangeToAMPM(timeRange.end);
   
   // Start building the prompt
   let prompt = `You are a local travel guide with deep knowledge about interesting places. Create a detailed itinerary for someone exploring an area with the following available places. IT IS CRITICAL THAT YOU ONLY USE PLACES FROM THESE LISTS:\n\n`;
@@ -433,4 +433,37 @@ const formatTime = (timeString) => {
   
   // If all else fails, return the original
   return timeString;
+};
+
+/**
+ * Convert a timeRange object to a readable AM/PM format string
+ * @param {Object} timeObj - Object with hour and minute properties in 24h format
+ * @returns {string} - Formatted time string in AM/PM format
+ */
+const formatTimeRangeToAMPM = (timeObj) => {
+  if (!timeObj || !timeObj.hour || !timeObj.minute) {
+    return '12:00 PM'; // Default fallback
+  }
+  
+  try {
+    // Parse hour and minute as integers
+    let hour = parseInt(timeObj.hour, 10);
+    const minute = parseInt(timeObj.minute, 10);
+    
+    // Determine AM/PM
+    const period = hour >= 12 ? 'PM' : 'AM';
+    
+    // Convert to 12-hour format
+    if (hour > 12) {
+      hour -= 12;
+    } else if (hour === 0) {
+      hour = 12;
+    }
+    
+    // Format with leading zeros for minutes
+    return `${hour}:${minute.toString().padStart(2, '0')} ${period}`;
+  } catch (error) {
+    console.error('Error formatting time range:', error);
+    return '12:00 PM'; // Default fallback
+  }
 }; 

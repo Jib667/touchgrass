@@ -226,7 +226,8 @@ const Dashboard = () => {
 
   // Handler for region select
   const handleRegionSelect = (regionData) => {
-    console.log("Region selected:", regionData);
+    console.log("[Dashboard] handleRegionSelect called. New regionData:", JSON.stringify(regionData));
+    console.log("[Dashboard] Current selectedRegion BEFORE update:", JSON.stringify(selectedRegion));
     
     // Don't clear popular places if we already have them
     if (!popularPlaces.length) {
@@ -532,7 +533,9 @@ const Dashboard = () => {
 
   // Update the fetchAutocompleteSuggestions function
   const fetchAutocompleteSuggestions = async (input) => {
+    console.log("[Dashboard] Fetching autocomplete for:", input);
     if (!input || !input.trim()) {
+      console.log("[Dashboard] Input is empty, clearing suggestions.");
       setAutocompleteSuggestions([]);
       return;
     }
@@ -542,6 +545,7 @@ const Dashboard = () => {
     
     const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
     const proxyUrl = `${backendUrl}/api/places/autocomplete`;
+    console.log("[Dashboard] Autocomplete Proxy URL:", proxyUrl);
 
     const body = {
       input,
@@ -549,6 +553,7 @@ const Dashboard = () => {
     };
     
     try {
+      console.log("[Dashboard] Sending autocomplete request with body:", body);
       const response = await fetch(proxyUrl, {
         method: "POST",
         headers: {
@@ -557,19 +562,31 @@ const Dashboard = () => {
         body: JSON.stringify(body)
       });
       
+      console.log("[Dashboard] Autocomplete response status:", response.status);
+      const responseDataText = await response.text(); // Read as text first to avoid JSON parse error on empty/invalid response
+      console.log("[Dashboard] Autocomplete response data text:", responseDataText);
+
       if (!response.ok) {
-        const errorData = await response.json();
-        setAutocompleteError(errorData.error || JSON.stringify(errorData.details));
+        let errorData = { error: `Request failed with status ${response.status}` };
+        try {
+          errorData = JSON.parse(responseDataText); // Try to parse as JSON if possible
+        } catch (e) {
+          console.warn("[Dashboard] Could not parse error response as JSON.");
+        }
+        console.error("[Dashboard] Autocomplete API error response:", errorData);
+        setAutocompleteError(errorData.error || JSON.stringify(errorData.details) || responseDataText);
         setAutocompleteSuggestions([]);
         setAutocompleteLoading(false);
         return;
       }
       
-      const data = await response.json();
+      const data = JSON.parse(responseDataText); // Now parse the success response
+      console.log("[Dashboard] Autocomplete success data:", data);
       setAutocompleteSuggestions(data.predictions || data.suggestions || []);
       setAutocompleteLoading(false);
     } catch (error) {
-      setAutocompleteError(error.message);
+      console.error("[Dashboard] Catch block error during autocomplete fetch:", error);
+      setAutocompleteError(error.message || 'Failed to fetch suggestions.');
       setAutocompleteSuggestions([]);
       setAutocompleteLoading(false);
     }
@@ -637,13 +654,24 @@ const Dashboard = () => {
           {autocompleteSuggestions.length > 0 && (
             <ul className="destination-suggestions">
               {autocompleteSuggestions.map((suggestion) => {
-                const pred = suggestion.placePrediction;
+                const pred = suggestion; // Changed from suggestion.placePrediction
                 if (!pred) return null;
+                // Ensure structuredFormat exists, and its mainText and secondaryText also exist before trying to access them
+                const mainText = pred.structured_formatting?.main_text?.text || pred.description;
+                const secondaryText = pred.structured_formatting?.secondary_text?.text || '';
+                const placeId = pred.place_id;
+
+                if (!placeId) {
+                  console.warn("[Dashboard] Suggestion missing place_id:", pred);
+                  return null; // Skip rendering if no place_id
+                }
+
                 return (
                   <li
-                    key={pred.placeId}
+                    key={placeId} // Use place_id directly from pred
                     onClick={async () => {
-                      const suggestionText = pred.structuredFormat?.mainText?.text || pred.text?.text || '';
+                      const suggestionText = mainText;
+                      console.log("[Dashboard] Suggestion clicked:", suggestionText, "Place ID:", placeId);
                       
                       // Add to recent searches
                       addRecentSearch(suggestionText);
@@ -655,7 +683,8 @@ const Dashboard = () => {
                       
                       try {
                         const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
-                        const proxyUrl = `${backendUrl}/api/places/details/${pred.placeId}`;
+                        const proxyUrl = `${backendUrl}/api/places/details/${placeId}`;
+                        console.log("[Dashboard] Fetching place details from URL:", proxyUrl);
                         
                         const response = await fetch(proxyUrl, {
                           method: "GET",
@@ -663,8 +692,10 @@ const Dashboard = () => {
                             "Content-Type": "application/json",
                           }
                         });
+                        console.log("[Dashboard] Place details response status:", response.status);
                         if (response.ok) {
                           const data = await response.json();
+                          console.log("[Dashboard] Place details data:", data);
                           if (data.result && data.result.geometry && data.result.geometry.location && mapRef.current) {
                             const { lat, lng } = data.result.geometry.location;
                             mapRef.current.panTo({ lat: lat, lng: lng });
@@ -674,8 +705,13 @@ const Dashboard = () => {
                              mapRef.current.panTo({ lat: latitude, lng: longitude });
                             mapRef.current.setZoom(15);
                           }
+                        } else {
+                          const errorText = await response.text();
+                          console.error("[Dashboard] Place details API error:", response.status, errorText);
+                          setAutocompleteError(`Could not get place details (status: ${response.status}).`);
                         }
                       } catch (err) {
+                        console.error("[Dashboard] Catch block error fetching place details:", err);
                         setAutocompleteError("Could not pan to place location via backend.");
                       } finally {
                         setAutocompleteLoading(false);
@@ -683,10 +719,10 @@ const Dashboard = () => {
                     }}
                   >
                     <div>
-                      <strong>{pred.structuredFormat?.mainText?.text || pred.text?.text}</strong>
-                      {pred.structuredFormat?.secondaryText?.text && (
+                      <strong>{mainText}</strong>
+                      {secondaryText && (
                         <div style={{ fontSize: '0.9em', color: '#b0ffb0' }}>
-                          {pred.structuredFormat.secondaryText.text}
+                          {secondaryText}
                         </div>
                       )}
                     </div>

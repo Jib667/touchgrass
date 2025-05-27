@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { getFirestore, doc, updateDoc, arrayUnion, getDoc } from 'firebase/firestore';
 import { auth } from '../firebase';
 import '../styles/ItineraryDisplay.css';
@@ -16,6 +16,7 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
   const [savingItinerary, setSavingItinerary] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const modalRef = useRef(null);
   
   // Format time to 12-hour AM/PM format
   const formatTimeToAMPM = (timeString) => {
@@ -260,55 +261,52 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
   
   // Helper function to determine icon for itinerary item based on content
   const getItemIcon = (item) => {
-    // Use the item.location directly, as it should already be the cleaned version
-    const locationString = item.location?.toLowerCase() || ''; 
+    const locationString = item.location?.toLowerCase() || '';
     const descriptionString = item.description?.toLowerCase() || '';
-    const content = locationString + ' ' + descriptionString;
     
-    // Check for specific place types - REORDERED: Park/Outdoor check comes first
-    if (content.includes('park') || content.includes('garden') || 
-               content.includes('hike') || content.includes('trail') || 
-               content.includes('nature') || content.includes('outdoor')) {
-      return (
-        <i className="fas fa-tree"></i>
-      );
-    } else if (content.includes('restaurant') || content.includes('café') || 
-        content.includes('cafe') || content.includes('dining') || 
-        content.includes('lunch') || content.includes('dinner') || 
-        content.includes('breakfast') || content.includes('brunch') || 
-        content.includes('meal') || content.includes('food') || 
-        content.includes('eat')) {
-      return (
-        <i className="fas fa-utensils"></i>
-      );
-    } else if (content.includes('museum') || content.includes('gallery') || 
-               content.includes('exhibition') || content.includes('art') || 
-               content.includes('history')) {
-      return (
-        <i className="fas fa-landmark"></i>
-      );
-    } else if (content.includes('shopping') || content.includes('store') || 
-               content.includes('mall') || content.includes('shop')) {
-      return (
-        <i className="fas fa-shopping-bag"></i>
-      );
-    } else if (content.includes('entertainment') || content.includes('show') || 
-               content.includes('theater') || content.includes('theatre') || 
-               content.includes('concert') || content.includes('movie')) {
-      return (
-        <i className="fas fa-film"></i>
-      );
-    } else if (content.includes('fitness') || content.includes('gym') || 
-               content.includes('workout') || content.includes('exercise')) {
-      return (
-        <i className="fas fa-dumbbell"></i>
-      );
-    } else {
-      // Default icon for other activities
-      return (
-        <i className="fas fa-map-marker-alt"></i>
-      );
+    // Extract the last word of the location string
+    const locationWords = locationString.split(/\\s+/);
+    const lastLocationWord = locationWords[locationWords.length - 1] || '';
+
+    // Prioritize checking the last word of the location, then the full location, then the description
+    const contentSources = [lastLocationWord, locationString, descriptionString];
+    
+    for (const source of contentSources) {
+      if (source.includes('park') || source.includes('garden') ||
+          source.includes('hike') || source.includes('trail') ||
+          source.includes('nature') || source.includes('outdoor')) {
+        return <i className="fas fa-tree"></i>;
+      }
+      if (source.includes('restaurant') || source.includes('café') ||
+          source.includes('cafe') || source.includes('dining') ||
+          source.includes('lunch') || source.includes('dinner') ||
+          source.includes('breakfast') || source.includes('brunch') ||
+          source.includes('meal') || source.includes('food') ||
+          source.includes('eat')) {
+        return <i className="fas fa-utensils"></i>;
+      }
+      if (source.includes('museum') || source.includes('gallery') ||
+          source.includes('exhibition') || source.includes('art') ||
+          source.includes('history') || source.includes('school') || source.includes('university') || source.includes('college')) {
+        return <i className="fas fa-landmark"></i>;
+      }
+      if (source.includes('shopping') || source.includes('store') ||
+          source.includes('mall') || source.includes('shop')) {
+        return <i className="fas fa-shopping-bag"></i>;
+      }
+      if (source.includes('entertainment') || source.includes('show') ||
+          source.includes('theater') || source.includes('theatre') ||
+          source.includes('concert') || source.includes('movie')) {
+        return <i className="fas fa-film"></i>;
+      }
+      if (source.includes('fitness') || source.includes('gym') ||
+          source.includes('workout') || source.includes('exercise')) {
+        return <i className="fas fa-dumbbell"></i>;
+      }
     }
+    
+    // Default icon if no keywords match in any source
+    return <i className="fas fa-map-marker-alt"></i>;
   };
   
   // Helper function to enhance description text with links and formatting
@@ -378,11 +376,32 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
     );
   };
   
+  // Effect to handle clicks outside the modal
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (modalRef.current && !modalRef.current.contains(event.target)) {
+        if (onClose) {
+          onClose();
+        }
+      }
+    };
+
+    // Add event listener when the modal is open (i.e., itinerary is present)
+    if (itinerary) {
+      document.addEventListener('mousedown', handleClickOutside);
+    }
+
+    // Cleanup the event listener
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [itinerary, onClose, modalRef]);
+  
   // If we don't have itinerary data yet
   if (!itinerary) {
     return (
       <div className="itinerary-display-overlay">
-        <div className="itinerary-display">
+        <div className="itinerary-display" ref={modalRef}>
           {onClose && <button className="close-button" onClick={onClose}>×</button>}
           <h2>Your Adventure Itinerary</h2>
           <div className="itinerary-content">
@@ -401,7 +420,7 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
   if (showRaw || (itinerary && (!itinerary.items || itinerary.items.length === 0))) {
     return (
       <div className="itinerary-display-overlay">
-        <div className="itinerary-display">
+        <div className="itinerary-display" ref={modalRef}>
           {onClose && <button className="close-button" onClick={onClose}>×</button>}
           <h2>Your Adventure Itinerary</h2>
           
@@ -441,7 +460,7 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
   // Otherwise, display the formatted itinerary
   return (
     <div className="itinerary-display-overlay">
-      <div className="itinerary-display">
+      <div className="itinerary-display" ref={modalRef}>
         {onClose && <button className="close-button" onClick={onClose}>×</button>}
         <h2>Your Adventure Itinerary</h2>
         

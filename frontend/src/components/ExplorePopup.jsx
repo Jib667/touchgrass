@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect, useCallback } from 'react';
 import { getFirestore, doc, getDoc } from 'firebase/firestore';
 import { auth } from '../firebase';
 import { generateItinerary } from '../services/ItineraryService';
@@ -69,326 +69,264 @@ const ACTIVITY_CATEGORIES = [
   }
 ];
 
-const TimeSelector = ({ startTime, endTime, onStartTimeChange, onEndTimeChange }) => {
+// Debounce utility function (can be moved to a utils file)
+function _debounce(func, delay) {
+  let timeout;
+  return function(...args) {
+    const context = this;
+    clearTimeout(timeout);
+    timeout = setTimeout(() => func.apply(context, args), delay);
+  };
+}
+
+const TimeSelector = ({ startTime, endTime, onStartTimeChange, onEndTimeChange, timeType }) => {
   const hours12 = Array.from({ length: 12 }, (_, i) => (i === 0 ? 12 : i).toString());
   const minutes = Array.from({ length: 60 }, (_, i) => i.toString().padStart(2, '0'));
   const ampm = ['AM', 'PM'];
   
-  const startHourRef = useRef(null);
-  const startMinRef = useRef(null);
-  const startAmPmRef = useRef(null);
-  const endHourRef = useRef(null);
-  const endMinRef = useRef(null);
-  const endAmPmRef = useRef(null);
+  const hourRef = useRef(null);
+  const minRef = useRef(null);
+  const amPmRef = useRef(null);
   
-  // State to track the display values for input fields
-  const [displayValues, setDisplayValues] = useState({
-    startHour: '12',
-    startAmPm: 'AM',
-    endHour: '12',
-    endAmPm: 'PM'
-  });
+  const [displayHour, setDisplayHour] = useState('12');
+  const [displayAmPm, setDisplayAmPm] = useState('AM');
+  const [inputValue, setInputValue] = useState('');
+
+  // Keep track of which column is being scrolled
+  const [scrollingColumn, setScrollingColumn] = useState(null);
   
-  // State to track the input field values separately
-  const [startInputValue, setStartInputValue] = useState('');
-  const [endInputValue, setEndInputValue] = useState('');
-  
+  const currentFullTime = timeType === 'start' ? startTime : endTime;
+  const onChangeCallbacks = timeType === 'start' ? onStartTimeChange : onEndTimeChange;
+
   // Convert 24-hour format to 12-hour format
-  const to12HourFormat = (hour24) => {
+  const to12HourFormat = useCallback((hour24) => {
     const hourNum = parseInt(hour24, 10);
     if (hourNum === 0) return { hour: '12', ampm: 'AM' };
     if (hourNum === 12) return { hour: '12', ampm: 'PM' };
     if (hourNum > 12) return { hour: (hourNum - 12).toString(), ampm: 'PM' };
     return { hour: hourNum.toString(), ampm: 'AM' };
-  };
+  }, []);
   
   // Convert 12-hour format to 24-hour format
-  const to24HourFormat = (hour12, ampm) => {
+  const to24HourFormat = useCallback((hour12, ampm_val) => {
     const hourNum = parseInt(hour12, 10);
-    if (ampm === 'AM' && hourNum === 12) return '00';
-    if (ampm === 'AM') return hourNum.toString().padStart(2, '0');
-    if (ampm === 'PM' && hourNum === 12) return '12';
+    if (ampm_val === 'AM' && hourNum === 12) return '00';
+    if (ampm_val === 'AM') return hourNum.toString().padStart(2, '0');
+    if (ampm_val === 'PM' && hourNum === 12) return '12';
     return (hourNum + 12).toString().padStart(2, '0');
-  };
+  }, []);
   
-  // Update display values when props change
+  // Update display value when the time changes
   useEffect(() => {
-    const startDisplay = to12HourFormat(startTime.hour);
-    const endDisplay = to12HourFormat(endTime.hour);
+    if (currentFullTime && currentFullTime.hour !== undefined && currentFullTime.minute !== undefined) {
+      const display = to12HourFormat(currentFullTime.hour);
+      setDisplayHour(display.hour);
+      setDisplayAmPm(display.ampm);
+      setInputValue(`${display.hour}:${currentFullTime.minute} ${display.ampm}`);
+    }
+  }, [currentFullTime, to12HourFormat]);
+
+  // Function to calculate which item is in the center of the visible area
+  const determineSelectedItem = useCallback((ref, values) => {
+    if (!ref.current) return null;
     
-    const newDisplayValues = {
-      startHour: startDisplay.hour,
-      startAmPm: startDisplay.ampm,
-      endHour: endDisplay.hour,
-      endAmPm: endDisplay.ampm
+    const container = ref.current;
+    const containerRect = container.getBoundingClientRect();
+    const containerCenter = containerRect.top + containerRect.height / 2;
+    
+    const items = container.querySelectorAll('li');
+    let closestItem = null;
+    let minDistance = Infinity;
+    
+    items.forEach((item, index) => {
+      const itemRect = item.getBoundingClientRect();
+      const itemCenter = itemRect.top + itemRect.height / 2;
+      const distance = Math.abs(containerCenter - itemCenter);
+      
+      if (distance < minDistance) {
+        minDistance = distance;
+        closestItem = { index, value: values[index % values.length] };
+      }
+    });
+    
+    return closestItem;
+  }, []);
+
+  // Automatically position scrollable elements initially
+  useEffect(() => {
+    const centerItem = (ref, value, values) => {
+      if (!ref.current) return;
+      
+      const index = values.indexOf(value);
+      if (index === -1) return;
+      
+      const itemHeight = 40;
+      const containerHeight = 120;
+      // Calculate scroll position to center the item
+      // Add 40px padding from the top of the list
+      const scrollPosition = index * itemHeight + 40 - (containerHeight - itemHeight) / 2;
+      
+      ref.current.scrollTop = scrollPosition;
     };
     
-    setDisplayValues(newDisplayValues);
-  
-    // Update input values when time changes from scroll or click
-    setStartInputValue(`${newDisplayValues.startHour}:${startTime.minute} ${newDisplayValues.startAmPm}`);
-    setEndInputValue(`${newDisplayValues.endHour}:${endTime.minute} ${newDisplayValues.endAmPm}`);
-  }, [startTime, endTime]);
-  
-  // Set initial scroll position for the time selectors
-  useEffect(() => {
-    if (startHourRef.current) {
-      const index = hours12.indexOf(displayValues.startHour);
-      const centerOffset = Math.max(0, index - 2) * 40; // 40px is item height
-      startHourRef.current.scrollTop = centerOffset;
+    // Only position if we're not currently scrolling
+    if (!scrollingColumn) {
+      // Position hour column
+      centerItem(hourRef, displayHour, hours12);
+      // Position minute column
+      if (currentFullTime && currentFullTime.minute) {
+        centerItem(minRef, currentFullTime.minute, minutes);
+      }
+      // Position AM/PM column
+      centerItem(amPmRef, displayAmPm, ampm);
     }
-    
-    if (startMinRef.current) {
-      const index = minutes.indexOf(startTime.minute);
-      const centerOffset = Math.max(0, index - 2) * 40;
-      startMinRef.current.scrollTop = centerOffset;
-    }
-    
-    if (startAmPmRef.current) {
-      const index = ampm.indexOf(displayValues.startAmPm);
-      const centerOffset = Math.max(0, index - 1) * 40;
-      startAmPmRef.current.scrollTop = centerOffset;
-    }
-    
-    if (endHourRef.current) {
-      const index = hours12.indexOf(displayValues.endHour);
-      const centerOffset = Math.max(0, index - 2) * 40;
-      endHourRef.current.scrollTop = centerOffset;
-    }
-    
-    if (endMinRef.current) {
-      const index = minutes.indexOf(endTime.minute);
-      const centerOffset = Math.max(0, index - 2) * 40;
-      endMinRef.current.scrollTop = centerOffset;
-    }
-    
-    if (endAmPmRef.current) {
-      const index = ampm.indexOf(displayValues.endAmPm);
-      const centerOffset = Math.max(0, index - 1) * 40;
-      endAmPmRef.current.scrollTop = centerOffset;
-    }
-  }, [displayValues, startTime.minute, endTime.minute]);
-  
-  const handleScrollSelect = (ref, values, currentValue, onChange) => {
-    if (!ref.current) return;
-    
-    const scrollTop = ref.current.scrollTop;
-    const itemHeight = 40; // Height of each time item
-    const selectedIndex = Math.round(scrollTop / itemHeight);
-    const newValue = values[Math.min(selectedIndex, values.length - 1)];
-    
-    if (newValue !== currentValue) {
-      onChange(newValue);
-    }
-  };
-  
-  // Handle hour change in 12-hour format
-  const handleHour12Change = (hour12, timeType) => {
-    const currentAmPm = timeType === 'start' 
-      ? displayValues.startAmPm 
-      : displayValues.endAmPm;
-    
-    const hour24 = to24HourFormat(hour12, currentAmPm);
-    
-    if (timeType === 'start') {
-      onStartTimeChange.hour(hour24);
-      setDisplayValues(prev => ({ ...prev, startHour: hour12 }));
-      setStartInputValue(`${hour12}:${startTime.minute} ${currentAmPm}`);
-    } else {
-      onEndTimeChange.hour(hour24);
-      setDisplayValues(prev => ({ ...prev, endHour: hour12 }));
-      setEndInputValue(`${hour12}:${endTime.minute} ${currentAmPm}`);
-    }
-  };
-  
-  // Handle AM/PM change
-  const handleAmPmChange = (newAmPm, timeType) => {
-    const currentHour12 = timeType === 'start' 
-      ? displayValues.startHour 
-      : displayValues.endHour;
-    
-    const hour24 = to24HourFormat(currentHour12, newAmPm);
-    
-    if (timeType === 'start') {
-      onStartTimeChange.hour(hour24);
-      setDisplayValues(prev => ({ ...prev, startAmPm: newAmPm }));
-      setStartInputValue(`${currentHour12}:${startTime.minute} ${newAmPm}`);
-    } else {
-      onEndTimeChange.hour(hour24);
-      setDisplayValues(prev => ({ ...prev, endAmPm: newAmPm }));
-      setEndInputValue(`${currentHour12}:${endTime.minute} ${newAmPm}`);
-    }
-  };
-  
-  // Handle direct time input
-  const handleDirectTimeInput = (e, timeType) => {
-    const timeString = timeType === 'start' ? startInputValue : endInputValue;
+  }, [displayHour, displayAmPm, currentFullTime, hours12, minutes, ampm, scrollingColumn]);
+
+  // Handle scroll events with debouncing
+  const handleScroll = useCallback(_debounce((columnType, ref, values) => {
+    // Small delay to ensure scrolling has completely stopped
+    setTimeout(() => {
+      const selectedItem = determineSelectedItem(ref, values);
+      
+      if (selectedItem) {
+        console.log(`Selected ${columnType}: ${selectedItem.value}`);
+        
+        if (columnType === 'hour') {
+          const newHour24 = to24HourFormat(selectedItem.value, displayAmPm);
+          console.log(`Converting ${selectedItem.value} ${displayAmPm} to 24h: ${newHour24}`);
+          onChangeCallbacks.hour(newHour24);
+        } else if (columnType === 'minute') {
+          console.log(`Setting minute to: ${selectedItem.value}`);
+          onChangeCallbacks.minute(selectedItem.value);
+        } else if (columnType === 'ampm') {
+          const newHour24 = to24HourFormat(displayHour, selectedItem.value);
+          console.log(`Changing period to ${selectedItem.value}, new 24h hour: ${newHour24}`);
+          onChangeCallbacks.hour(newHour24);
+        }
+      }
+      
+      // Clear scrolling state after selection is made
+      setScrollingColumn(null);
+      
+      // After selecting a value, snap to it
+      if (selectedItem && ref.current) {
+        const itemHeight = 40;
+        const containerHeight = 120;
+        const scrollPosition = Math.max(
+          0, 
+          (selectedItem.index * itemHeight) + 40 - (containerHeight - itemHeight) / 2
+        );
+        
+        // Smooth scroll to exactly center the selected item
+        ref.current.scrollTo({
+          top: scrollPosition,
+          behavior: 'smooth'
+        });
+      }
+    }, 50); // Small delay to ensure DOM is settled
+  }, 150), [determineSelectedItem, displayHour, displayAmPm, onChangeCallbacks, to24HourFormat]);
+
+  // Function to handle direct time input via text field
+  const handleDirectTimeInput = useCallback((e) => {
+    const timeString = inputValue;
     const timePattern = /^(\d{1,2}):(\d{2})\s?(AM|PM)$/i;
-    
     if (timePattern.test(timeString)) {
       const matches = timeString.match(timePattern);
-      const hour12 = matches[1];
-      const minute = matches[2];
-      const ampm = matches[3].toUpperCase();
-      
-      const hour24 = to24HourFormat(hour12, ampm);
-      
-      if (timeType === 'start') {
-        onStartTimeChange.hour(hour24);
-        onStartTimeChange.minute(minute);
-        setDisplayValues(prev => ({ ...prev, startHour: hour12, startAmPm: ampm }));
+      let inputH = matches[1];
+      const inputM = matches[2];
+      const inputAP = matches[3].toUpperCase();
+      if (parseInt(inputH,10) > 0 && parseInt(inputH,10) <= 12 && parseInt(inputM,10) >=0 && parseInt(inputM,10) <=59) {
+        const hour24 = to24HourFormat(inputH, inputAP);
+        onChangeCallbacks.hour(hour24);
+        onChangeCallbacks.minute(inputM);
       } else {
-        onEndTimeChange.hour(hour24);
-        onEndTimeChange.minute(minute);
-        setDisplayValues(prev => ({ ...prev, endHour: hour12, endAmPm: ampm }));
+        if (currentFullTime) {
+          const display = to12HourFormat(currentFullTime.hour);
+          setInputValue(`${display.hour}:${currentFullTime.minute} ${display.ampm}`);
+        }
       }
     } else {
-      // If invalid, reset to the current value from state
-      if (timeType === 'start') {
-        setStartInputValue(`${displayValues.startHour}:${startTime.minute} ${displayValues.startAmPm}`);
-      } else {
-        setEndInputValue(`${displayValues.endHour}:${endTime.minute} ${displayValues.endAmPm}`);
+      if (currentFullTime) {
+        const display = to12HourFormat(currentFullTime.hour);
+        setInputValue(`${display.hour}:${currentFullTime.minute} ${display.ampm}`);
       }
     }
-  };
-
-  // Wrapper for start minute changes to also update input field
-  const handleStartMinuteChange = (minute) => {
-    onStartTimeChange.minute(minute);
-    setStartInputValue(`${displayValues.startHour}:${minute} ${displayValues.startAmPm}`);
-  };
-  
-  // Wrapper for end minute changes to also update input field
-  const handleEndMinuteChange = (minute) => {
-    onEndTimeChange.minute(minute);
-    setEndInputValue(`${displayValues.endHour}:${minute} ${displayValues.endAmPm}`);
-  };
+  }, [inputValue, onChangeCallbacks, currentFullTime, to12HourFormat, to24HourFormat]);
 
   return (
-    <div className="time-selector">
-      <div className="time-group">
-        <span className="time-label">Start Time:</span>
-        <input 
-          type="text" 
-          className="time-direct-input"
-          placeholder="e.g. 10:30 AM"
-          value={startInputValue}
-          onChange={(e) => {
-            setStartInputValue(e.target.value);
+    <div className="time-input-custom-selector">
+      <input 
+        type="text" 
+        className="time-display-input"
+        value={inputValue}
+        onChange={(e) => setInputValue(e.target.value)}
+        onBlur={handleDirectTimeInput}
+        onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
+        placeholder="hh:mm AM/PM"
+      />
+      <div className="time-selector-container">
+        <div 
+          className="time-selector-column hour-column" 
+          ref={hourRef}
+          onScroll={() => {
+            if (scrollingColumn !== 'hour') {
+              setScrollingColumn('hour');
+            }
+            handleScroll('hour', hourRef, hours12);
           }}
-          onBlur={(e) => handleDirectTimeInput(e, 'start')}
-          onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-        />
-        <div className="time-scroll-container">
-          <div 
-            className="time-scroll hour-scroll" 
-            ref={startHourRef}
-            onScroll={() => handleScrollSelect(startHourRef, hours12, displayValues.startHour, (hour) => handleHour12Change(hour, 'start'))}
-          >
-            {hours12.map(hour => (
-              <div 
-                key={`start-hour-${hour}`} 
-                className={`time-item ${hour === displayValues.startHour ? 'selected' : ''}`}
-                onClick={() => handleHour12Change(hour, 'start')}
+        >
+          <ul>
+            {hours12.map(h => (
+              <li 
+                key={`${timeType}-h-${h}`} 
+                className={h === displayHour ? 'selected-time-item' : ''}
               >
-                {hour}
-              </div>
+                {h}
+              </li>
             ))}
-          </div>
-          <div className="time-separator">:</div>
-          <div 
-            className="time-scroll minute-scroll" 
-            ref={startMinRef}
-            onScroll={() => handleScrollSelect(startMinRef, minutes, startTime.minute, handleStartMinuteChange)}
-          >
-            {minutes.map(minute => (
-              <div 
-                key={`start-min-${minute}`} 
-                className={`time-item ${minute === startTime.minute ? 'selected' : ''}`}
-                onClick={() => handleStartMinuteChange(minute)}
-              >
-                {minute}
-              </div>
-            ))}
-          </div>
-          <div 
-            className="time-scroll ampm-scroll" 
-            ref={startAmPmRef}
-            onScroll={() => handleScrollSelect(startAmPmRef, ampm, displayValues.startAmPm, (newAmPm) => handleAmPmChange(newAmPm, 'start'))}
-          >
-            {ampm.map(period => (
-              <div 
-                key={`start-ampm-${period}`} 
-                className={`time-item ${period === displayValues.startAmPm ? 'selected' : ''}`}
-                onClick={() => handleAmPmChange(period, 'start')}
-              >
-                {period}
-              </div>
-            ))}
-          </div>
+          </ul>
         </div>
-      </div>
-      
-      <div className="time-group">
-        <span className="time-label">End Time:</span>
-        <input 
-          type="text" 
-          className="time-direct-input"
-          placeholder="e.g. 2:30 PM"
-          value={endInputValue}
-          onChange={(e) => {
-            setEndInputValue(e.target.value);
+        <div 
+          className="time-selector-column minute-column" 
+          ref={minRef}
+          onScroll={() => {
+            if (scrollingColumn !== 'minute') {
+              setScrollingColumn('minute');
+            }
+            handleScroll('minute', minRef, minutes);
           }}
-          onBlur={(e) => handleDirectTimeInput(e, 'end')}
-          onKeyDown={(e) => e.key === 'Enter' && e.target.blur()}
-        />
-        <div className="time-scroll-container">
-          <div 
-            className="time-scroll hour-scroll" 
-            ref={endHourRef}
-            onScroll={() => handleScrollSelect(endHourRef, hours12, displayValues.endHour, (hour) => handleHour12Change(hour, 'end'))}
-          >
-            {hours12.map(hour => (
-              <div 
-                key={`end-hour-${hour}`} 
-                className={`time-item ${hour === displayValues.endHour ? 'selected' : ''}`}
-                onClick={() => handleHour12Change(hour, 'end')}
+        >
+          <ul>
+            {minutes.map(m => (
+              <li 
+                key={`${timeType}-m-${m}`} 
+                className={(currentFullTime && m === currentFullTime.minute) ? 'selected-time-item' : ''}
               >
-                {hour}
-              </div>
+                {m}
+              </li>
             ))}
-          </div>
-          <div className="time-separator">:</div>
-          <div 
-            className="time-scroll minute-scroll" 
-            ref={endMinRef}
-            onScroll={() => handleScrollSelect(endMinRef, minutes, endTime.minute, handleEndMinuteChange)}
-          >
-            {minutes.map(minute => (
-              <div 
-                key={`end-min-${minute}`} 
-                className={`time-item ${minute === endTime.minute ? 'selected' : ''}`}
-                onClick={() => handleEndMinuteChange(minute)}
+          </ul>
+        </div>
+        <div 
+          className="time-selector-column ampm-column" 
+          ref={amPmRef}
+          onScroll={() => {
+            if (scrollingColumn !== 'ampm') {
+              setScrollingColumn('ampm');
+            }
+            handleScroll('ampm', amPmRef, ampm);
+          }}
+        >
+          <ul>
+            {ampm.map(ap => (
+              <li 
+                key={`${timeType}-ap-${ap}`} 
+                className={ap === displayAmPm ? 'selected-time-item' : ''}
               >
-                {minute}
-              </div>
+                {ap}
+              </li>
             ))}
-          </div>
-          <div 
-            className="time-scroll ampm-scroll" 
-            ref={endAmPmRef}
-            onScroll={() => handleScrollSelect(endAmPmRef, ampm, displayValues.endAmPm, (newAmPm) => handleAmPmChange(newAmPm, 'end'))}
-          >
-            {ampm.map(period => (
-              <div 
-                key={`end-ampm-${period}`} 
-                className={`time-item ${period === displayValues.endAmPm ? 'selected' : ''}`}
-                onClick={() => handleAmPmChange(period, 'end')}
-              >
-                {period}
-              </div>
-            ))}
-          </div>
+          </ul>
         </div>
       </div>
     </div>
@@ -544,12 +482,16 @@ const ActivitySelector = ({
 
 const ExplorePopup = ({ region, onClose }) => {
   // Form state
-  const [timeRange, setTimeRange] = useState({ start: '09:00', end: '17:00' });
+  const [timeRange, setTimeRange] = useState({
+    start: { hour: '07', minute: '00' }, // 7:00 AM in 24h format
+    end: { hour: '21', minute: '00' },   // 9:00 PM in 24h format
+  });
   const [tripType, setTripType] = useState('surprise'); // 'surprise' or 'custom'
   const [surpriseType, setSurpriseType] = useState('popular'); // 'popular' or 'niche'
   const [activities, setActivities] = useState([]);
   const [customActivity, setCustomActivity] = useState('');
   const [userPreferences, setUserPreferences] = useState(null);
+  const [timeSelectorKey, setTimeSelectorKey] = useState(0); // New state for key
   
   // Itinerary generation state
   const [isGenerating, setIsGenerating] = useState(false);
@@ -559,6 +501,33 @@ const ExplorePopup = ({ region, onClose }) => {
   
   // Show form by default
   const [showForm, setShowForm] = useState(true);
+  
+  // Reset form to default values when opened (when region changes or component mounts)
+  useEffect(() => {
+    console.log("[ExplorePopup] useEffect for form reset triggered. Region:", region);
+    // Default time values
+    setTimeRange({
+      start: { hour: '07', minute: '00' }, // 7:00 AM in 24h format
+      end: { hour: '21', minute: '00' },   // 9:00 PM in 24h format
+    });
+    
+    // Reset other form values if needed
+    setTripType('surprise');
+    setSurpriseType('popular');
+    setActivities([]);
+    setCustomActivity('');
+    
+    // Reset state related to itinerary generation
+    setShowForm(true);
+    setIsGenerating(false);
+    setShowItinerary(false);
+    setItineraryData(null);
+    setGenerationError(null);
+    setTimeSelectorKey(prevKey => {
+      console.log("[ExplorePopup] Updating timeSelectorKey from", prevKey, "to", prevKey + 1);
+      return prevKey + 1;
+    });
+  }, [region]);
   
   // Fetch user preferences when component mounts
   useEffect(() => {
@@ -582,8 +551,19 @@ const ExplorePopup = ({ region, onClose }) => {
     fetchUserPreferences();
   }, []);
   
-  const handleTimeChange = (field, value) => {
-    setTimeRange(prev => ({ ...prev, [field]: value }));
+  const handleTimeChange = (timeType, part, value) => {
+    console.log(`Time changed: ${timeType} ${part} to ${value}`);
+    setTimeRange(prev => {
+      const newTimeRange = {
+        ...prev,
+        [timeType]: {
+          ...prev[timeType],
+          [part]: value
+        }
+      };
+      console.log('Updated time range:', JSON.stringify(newTimeRange));
+      return newTimeRange;
+    });
   };
   
   const handleTripTypeChange = (type) => {
@@ -687,23 +667,31 @@ const ExplorePopup = ({ region, onClose }) => {
                 <h3>When do you want to explore?</h3>
                 <div className="time-range">
                   <div className="time-input">
-                    <label htmlFor="start-time">Start Time</label>
-                    <input
-                      type="time"
-                      id="start-time"
-                      value={timeRange.start}
-                      onChange={(e) => handleTimeChange('start', e.target.value)}
-                      required
+                    <label>Start Time</label>
+                    <TimeSelector
+                      key={`start-${timeSelectorKey}`}
+                      startTime={timeRange.start}
+                      endTime={timeRange.end}
+                      onStartTimeChange={{
+                        hour: (h) => handleTimeChange('start', 'hour', h),
+                        minute: (m) => handleTimeChange('start', 'minute', m),
+                      }}
+                      onEndTimeChange={{}}
+                      timeType="start"
                     />
                   </div>
                   <div className="time-input">
-                    <label htmlFor="end-time">End Time</label>
-                    <input
-                      type="time"
-                      id="end-time"
-                      value={timeRange.end}
-                      onChange={(e) => handleTimeChange('end', e.target.value)}
-                      required
+                    <label>End Time</label>
+                    <TimeSelector
+                      key={`end-${timeSelectorKey}`}
+                      startTime={timeRange.start}
+                      endTime={timeRange.end}
+                      onStartTimeChange={{}}
+                      onEndTimeChange={{
+                        hour: (h) => handleTimeChange('end', 'hour', h),
+                        minute: (m) => handleTimeChange('end', 'minute', m),
+                      }}
+                      timeType="end"
                     />
                   </div>
                 </div>
