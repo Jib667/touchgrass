@@ -53,12 +53,31 @@ export const fetchPlacesInRegion = async (region, types = []) => {
     // For circle regions, use the center point and radius
     if (region.type === 'circle') {
       const { center, radius } = region;
-      console.log(`Fetching comprehensive places data for region: ${JSON.stringify(center)}, radius: ${radius}m`);
+      console.log(`Fetching places data for circle: ${JSON.stringify(center)}, radius: ${radius}m`);
       
-      // Fetch all places in a single call for better compatibility
+      // Fetch places
       const allPlaces = await fetchPlacesInCircle(center, radius);
-      places = allPlaces;
       
+      // Filter places to ensure they are strictly within the circle radius
+      places = allPlaces.filter(place => {
+        const placeLat = place.location?.latitude || place.geometry?.location?.lat;
+        const placeLng = place.location?.longitude || place.geometry?.location?.lng;
+        
+        if (!placeLat || !placeLng) return false;
+        
+        // Calculate distance from center to place
+        const distance = calculateDistance(
+          center.lat, 
+          center.lng, 
+          placeLat, 
+          placeLng
+        );
+        
+        // Only include places within the radius
+        return distance <= radius;
+      });
+      
+      console.log(`Filtered from ${allPlaces.length} total places to ${places.length} places strictly within circle radius`);
     } 
     // For polygon regions, use the center point and a radius that encompasses the polygon
     else if (region.type === 'polygon') {
@@ -104,45 +123,128 @@ async function fetchPlacesInCircle(center, radius) {
   const adjustedRadius = Math.min(radius, 50000); // 50km max radius
   
   try {
-    // Try fetching with comprehensive request
-    const body = {
-      locationRestriction: {
-        circle: {
-          center: { 
-            latitude: center.lat, 
-            longitude: center.lng 
-          },
-          radius: adjustedRadius
-        }
-      },
-      maxResultCount: 20,
-      rankPreference: "DISTANCE" // Closest places first
-    };
+    console.log("Fetching places with comprehensive approach");
     
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.types,places.photos,places.regularOpeningHours"
-      },
-      body: JSON.stringify(body)
+    // Array to collect all places
+    let allPlaces = [];
+    
+    // Make multiple searches with different filters to get more diverse results
+    const searchTypes = [
+      // Popular attractions
+      ["tourist_attraction", "museum", "amusement_park", "aquarium", "art_gallery", "zoo"],
+      // Historical and cultural
+      ["historical_landmark", "library"],
+      // Nature and outdoors
+      ["park", "campground", "beach"],
+      // Food and dining
+      ["restaurant", "cafe", "bakery", "bar"],
+      // Shopping
+      ["shopping_mall", "department_store", "store"]
+    ];
+    
+    // Execute multiple searches to get comprehensive results
+    const searchPromises = searchTypes.map(async (types) => {
+      const body = {
+        locationRestriction: {
+          circle: {
+            center: { 
+              latitude: center.lat, 
+              longitude: center.lng 
+            },
+            radius: adjustedRadius
+          }
+        },
+        includedTypes: types,
+        maxResultCount: 20, // Set to max allowed value (20)
+        rankPreference: "POPULARITY" // Get the most popular places first
+      };
+      
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.types,places.photos,places.regularOpeningHours"
+          },
+          body: JSON.stringify(body)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Places API error for type ${types.join(',')} (${response.status}): ${errorText}`);
+          return [];
+        }
+        
+        const data = await response.json();
+        return data.places || [];
+      } catch (error) {
+        console.error(`Error fetching places for types ${types.join(',')}:`, error);
+        return [];
+      }
     });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Places API error (${response.status}): ${errorText}`);
+    // Also make a general search without type filtering to get additional places
+    const generalSearchPromise = (async () => {
+      const body = {
+        locationRestriction: {
+          circle: {
+            center: { 
+              latitude: center.lat, 
+              longitude: center.lng 
+            },
+            radius: adjustedRadius
+          }
+        },
+        maxResultCount: 20, // Set to max allowed value (20)
+        rankPreference: "POPULARITY"
+      };
       
-      // If we get a 400 error, try a simpler request without location bias
-      if (response.status === 400) {
-        console.log("Trying alternative approach with text search...");
-        return await fetchPlacesWithTextSearch(center, adjustedRadius);
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.types,places.photos,places.regularOpeningHours"
+          },
+          body: JSON.stringify(body)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`General Places API error (${response.status}): ${errorText}`);
+          return [];
+        }
+        
+        const data = await response.json();
+        return data.places || [];
+      } catch (error) {
+        console.error("Error in general places search:", error);
+        return [];
       }
-      
-      throw new Error(`Places API returned ${response.status}: ${errorText}`);
+    })();
+    
+    // Combine general search with type-specific searches
+    const allSearchPromises = [...searchPromises, generalSearchPromise];
+    
+    // Wait for all searches to complete
+    const placesArrays = await Promise.all(allSearchPromises);
+    
+    // Flatten and merge all place arrays
+    placesArrays.forEach(places => {
+      if (places && places.length) {
+        allPlaces = [...allPlaces, ...places];
+      }
+    });
+    
+    console.log(`Fetched a total of ${allPlaces.length} places (before deduplication)`);
+    
+    // If we didn't get any places, try the text search as fallback
+    if (allPlaces.length === 0) {
+      console.log("No places found with nearby search, trying text search fallback...");
+      return await fetchPlacesWithTextSearch(center, adjustedRadius);
     }
     
-    const data = await response.json();
-    return data.places || [];
+    return allPlaces;
   } catch (error) {
     console.error("Error in fetchPlacesInCircle:", error);
     
@@ -163,37 +265,75 @@ async function fetchPlacesWithTextSearch(center, radius) {
   const url = `https://places.googleapis.com/v1/places:searchText?key=${apiKey}`;
   
   try {
-    const body = {
-      textQuery: "popular places",
-      locationBias: {
-        circle: {
-          center: { 
-            latitude: center.lat, 
-            longitude: center.lng 
-          },
-          radius: radius
-        }
-      },
-      maxResultCount: 20
-    };
+    console.log("Attempting multiple text searches as fallback...");
     
-    const response = await fetch(url, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.types,places.photos,places.regularOpeningHours"
-      },
-      body: JSON.stringify(body)
+    // Different search queries to try
+    const searchQueries = [
+      "popular places",
+      "attractions",
+      "things to do",
+      "tourist spots", 
+      "restaurants",
+      "museums",
+      "parks",
+      "historical sites",
+      "entertainment"
+    ];
+    
+    // Make a request for each search query
+    const searchPromises = searchQueries.map(async (query) => {
+      const body = {
+        textQuery: query,
+        locationBias: {
+          circle: {
+            center: { 
+              latitude: center.lat, 
+              longitude: center.lng 
+            },
+            radius: radius
+          }
+        },
+        maxResultCount: 20 // Set to max allowed value (20)
+      };
+      
+      try {
+        const response = await fetch(url, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.types,places.photos,places.regularOpeningHours"
+          },
+          body: JSON.stringify(body)
+        });
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`Text search API error for '${query}' (${response.status}): ${errorText}`);
+          return [];
+        }
+        
+        const data = await response.json();
+        return data.places || [];
+      } catch (error) {
+        console.error(`Error in text search for '${query}':`, error);
+        return [];
+      }
     });
     
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`Text search API error (${response.status}): ${errorText}`);
-      throw new Error(`Text search API returned ${response.status}: ${errorText}`);
-    }
+    // Wait for all searches to complete
+    const placesArrays = await Promise.all(searchPromises);
     
-    const data = await response.json();
-    return data.places || [];
+    // Combine all results
+    let allPlaces = [];
+    placesArrays.forEach(places => {
+      if (places && places.length) {
+        allPlaces = [...allPlaces, ...places];
+      }
+    });
+    
+    console.log(`Text search fallback found ${allPlaces.length} places (before deduplication)`);
+    
+    return allPlaces;
   } catch (error) {
     console.error("Error in fetchPlacesWithTextSearch:", error);
     
@@ -269,13 +409,16 @@ function isPointInPolygon(point, polygon) {
 }
 
 /**
- * Removes duplicate places from an array based on unique IDs or coordinates
+ * Removes duplicate places from an array based on unique IDs, coordinates, and name similarity
  * @param {Array} places - Array of place objects
  * @returns {Array} - Array with duplicates removed
  */
 function removeDuplicatePlaces(places) {
+  console.log(`Removing duplicates from ${places.length} places`);
+  
+  // First pass: remove exact ID duplicates
   const uniqueIds = new Set();
-  const uniquePlaces = [];
+  const idFilteredPlaces = [];
   
   places.forEach(place => {
     // Use ID if available, otherwise use coordinates
@@ -284,11 +427,131 @@ function removeDuplicatePlaces(places) {
     
     if (!uniqueIds.has(id)) {
       uniqueIds.add(id);
-      uniquePlaces.push(place);
+      idFilteredPlaces.push(place);
     }
   });
   
-  return uniquePlaces;
+  console.log(`After removing ID duplicates: ${idFilteredPlaces.length} places`);
+  
+  // Second pass: remove near-duplicate locations
+  const locationFilteredPlaces = [];
+  const processedLocations = new Set();
+  
+  idFilteredPlaces.forEach(place => {
+    const lat = place.location?.latitude || place.geometry?.location?.lat;
+    const lng = place.location?.longitude || place.geometry?.location?.lng;
+    
+    // Skip places without proper location data
+    if (!lat || !lng) {
+      locationFilteredPlaces.push(place);
+      return;
+    }
+    
+    // Round to 5 decimal places (about 1 meter precision)
+    const roundedLocation = `${lat.toFixed(5)},${lng.toFixed(5)}`;
+    
+    if (!processedLocations.has(roundedLocation)) {
+      processedLocations.add(roundedLocation);
+      locationFilteredPlaces.push(place);
+    }
+  });
+  
+  console.log(`After removing location duplicates: ${locationFilteredPlaces.length} places`);
+  
+  // Third pass: Check for name similarity
+  const nameFilteredPlaces = [];
+  const processedNames = new Map(); // Map to store normalized names and their corresponding place objects
+  
+  locationFilteredPlaces.forEach(place => {
+    const displayName = place.displayName?.text || '';
+    
+    // Skip places without a name
+    if (!displayName) {
+      nameFilteredPlaces.push(place);
+      return;
+    }
+    
+    // Normalize the name (lowercase, remove special chars, trim)
+    const normalizedName = displayName.toLowerCase()
+      .replace(/[^\w\s]/g, '') // Remove special characters
+      .replace(/\s+/g, ' ')    // Replace multiple spaces with single space
+      .trim();
+    
+    // Minimum length to consider for similarity
+    if (normalizedName.length < 4) {
+      nameFilteredPlaces.push(place);
+      return;
+    }
+    
+    // Check for existing similar names
+    let isDuplicate = false;
+    
+    for (const [existingName, existingPlace] of processedNames.entries()) {
+      // Check for high similarity (one name contains the other)
+      if (existingName.includes(normalizedName) || normalizedName.includes(existingName)) {
+        // If they are similar names, keep the one with more information
+        isDuplicate = true;
+        
+        // Check which place has better data (ratings, reviews, etc.)
+        const existingScore = calculateInfoScore(existingPlace);
+        const currentScore = calculateInfoScore(place);
+        
+        // If current place has better data, replace the existing one
+        if (currentScore > existingScore) {
+          processedNames.delete(existingName);
+          processedNames.set(normalizedName, place);
+          
+          // Find and remove the existing place from our filtered list
+          const index = nameFilteredPlaces.indexOf(existingPlace);
+          if (index > -1) {
+            nameFilteredPlaces.splice(index, 1);
+          }
+          
+          nameFilteredPlaces.push(place);
+        }
+        
+        break;
+      }
+    }
+    
+    // If not a duplicate, add it
+    if (!isDuplicate) {
+      processedNames.set(normalizedName, place);
+      nameFilteredPlaces.push(place);
+    }
+  });
+  
+  console.log(`After removing name duplicates: ${nameFilteredPlaces.length} places`);
+  
+  return nameFilteredPlaces;
+}
+
+/**
+ * Calculate an information score for a place to determine which duplicate to keep
+ * Higher score means more information is available
+ * @param {Object} place - Place object
+ * @returns {number} - Information score
+ */
+function calculateInfoScore(place) {
+  let score = 0;
+  
+  // Rating and review count are valuable
+  if (place.rating) score += 2;
+  if (place.userRatingCount) score += Math.min(place.userRatingCount / 100, 5); // Cap at 5 points for 500+ reviews
+  
+  // Having an address is valuable
+  if (place.formattedAddress) score += 1;
+  
+  // Having photos is valuable
+  if (place.photos && place.photos.length) score += place.photos.length;
+  
+  // Having opening hours is valuable
+  if (place.regularOpeningHours) score += 1;
+  
+  // Types provide context
+  if (place.types && place.types.length) score += Math.min(place.types.length, 3);
+  
+  return score;
 }
 
 /**

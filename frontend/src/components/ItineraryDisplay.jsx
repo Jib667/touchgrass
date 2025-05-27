@@ -42,6 +42,8 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
   // Process itinerary items to extract location links and format times
   useEffect(() => {
     if (itinerary?.items && itinerary.items.length > 0) {
+      console.log("Processing itinerary items:", itinerary.items);
+      
       // Process each item to extract place names and add links
       const processed = itinerary.items.map((item, index) => {
         // Try to extract a place name from the location
@@ -49,24 +51,27 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
         let placeName = '';
         let linkUrl = '';
         
+        // Clean location name (remove any remaining parenthetical content like ratings)
+        const cleanLocation = item.location.replace(/\([^)]*\)/g, '').trim();
+        
         // Look for text in brackets like [Central Park]
-        const bracketMatch = item.location?.match(/\[(.*?)\]/);
+        const bracketMatch = cleanLocation.match(/\[(.*?)\]/);
         if (bracketMatch) {
           placeName = bracketMatch[1];
         } 
         // Look for text in quotes like "Central Park"
-        else if (item.location?.includes('"')) {
-          const quoteMatch = item.location.match(/"([^"]+)"/);
+        else if (cleanLocation.includes('"')) {
+          const quoteMatch = cleanLocation.match(/"([^"]+)"/);
           if (quoteMatch) {
             placeName = quoteMatch[1];
           }
         }
         // Otherwise use the whole location or part after a dash
         else {
-          if (item.location?.includes(' - ')) {
-            placeName = item.location.split(' - ')[1].trim();
+          if (cleanLocation.includes(' - ')) {
+            placeName = cleanLocation.split(' - ')[1].trim();
           } else {
-            placeName = item.location?.trim() || '';
+            placeName = cleanLocation.trim();
           }
         }
         
@@ -78,13 +83,17 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
         return {
           id: index, // Add ID for removal functionality
           time: formatTimeToAMPM(item.time),
-          title: item.location, // Use location as title for display
+          location: cleanLocation, // Use the cleaned location
+          title: cleanLocation, // For backward compatibility
           description: item.description,
           placeName,
-          linkUrl
+          linkUrl,
+          rating: item.rating, // Pass through rating
+          reviewCount: item.reviewCount // Pass through review count
         };
       });
       
+      console.log("Processed itinerary items:", processed);
       setEnhancedItems(processed);
     } else {
       setEnhancedItems([]);
@@ -97,8 +106,8 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
   }, [itinerary]);
   
   // Remove itinerary item
-  const removeItem = (itemId) => {
-    setEnhancedItems(prevItems => prevItems.filter(item => item.id !== itemId));
+  const handleRemoveItem = (index) => {
+    setEnhancedItems(prevItems => prevItems.filter((_, i) => i !== index));
   };
   
   // Save itinerary to user's profile
@@ -178,8 +187,11 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
     tomorrow.setDate(tomorrow.getDate() + 1);
     const dateStr = tomorrow.toISOString().split('T')[0]; // Format as YYYY-MM-DD
     
-    // For each itinerary item, create a Google Calendar event link
-    enhancedItems.forEach(item => {
+    // Create a single URL that adds all events to Google Calendar
+    let calendarUrl = 'https://www.google.com/calendar/render?action=TEMPLATE';
+    
+    // For each itinerary item, add it as a separate event
+    enhancedItems.forEach((item, index) => {
       // Parse the time
       const timeParts = item.time.match(/(\d+):(\d+)\s*(AM|PM)/i);
       if (!timeParts) return;
@@ -196,14 +208,174 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
       const startTime = `${dateStr}T${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
       const endTime = `${dateStr}T${(hours + 1).toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:00`;
       
-      // Create Google Calendar URL
-      const eventTitle = encodeURIComponent(item.title);
+      // Create parameter for this event
+      const eventTitle = encodeURIComponent(`${item.title}`);
       const eventDetails = encodeURIComponent(item.description);
-      const calendarUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${eventTitle}&details=${eventDetails}&dates=${startTime.replace(/[-:]/g, '')}/${endTime.replace(/[-:]/g, '')}`;
+      const eventLocation = encodeURIComponent(item.placeName || item.title);
       
-      // Open in a new tab
-      window.open(calendarUrl, '_blank');
+      // Add to URL with unique parameter names
+      calendarUrl += `&text${index}=${eventTitle}`;
+      calendarUrl += `&details${index}=${eventDetails}`;
+      calendarUrl += `&location${index}=${eventLocation}`;
+      calendarUrl += `&dates${index}=${startTime.replace(/[-:]/g, '')}/${endTime.replace(/[-:]/g, '')}`;
     });
+    
+    // Open in a new tab
+    window.open(calendarUrl, '_blank');
+  };
+  
+  // Helper function to render star ratings
+  const renderStarRating = (rating, reviewCount) => {
+    if (!rating) return null;
+    
+    // Round to nearest half star
+    const roundedRating = Math.round(rating * 2) / 2;
+    
+    return (
+      <div className="item-rating">
+        <div className="stars">
+          {[1, 2, 3, 4, 5].map((star) => {
+            if (star <= roundedRating) {
+              // Full star
+              return (
+                <span key={star} className="star full-star">★</span>
+              );
+            } else if (star - 0.5 === roundedRating) {
+              // Half star
+              return (
+                <span key={star} className="star half-star">★</span>
+              );
+            } else {
+              // Empty star
+              return (
+                <span key={star} className="star empty-star">☆</span>
+              );
+            }
+          })}
+        </div>
+        {reviewCount && <span className="review-count">({reviewCount})</span>}
+      </div>
+    );
+  };
+  
+  // Helper function to determine icon for itinerary item based on content
+  const getItemIcon = (item) => {
+    // Use the item.location directly, as it should already be the cleaned version
+    const locationString = item.location?.toLowerCase() || ''; 
+    const descriptionString = item.description?.toLowerCase() || '';
+    const content = locationString + ' ' + descriptionString;
+    
+    // Check for specific place types
+    if (content.includes('restaurant') || content.includes('café') || 
+        content.includes('cafe') || content.includes('dining') || 
+        content.includes('lunch') || content.includes('dinner') || 
+        content.includes('breakfast') || content.includes('brunch') || 
+        content.includes('meal') || content.includes('food') || 
+        content.includes('eat')) {
+      return (
+        <i className="fas fa-utensils"></i>
+      );
+    } else if (content.includes('park') || content.includes('garden') || 
+               content.includes('hike') || content.includes('trail') || 
+               content.includes('nature') || content.includes('outdoor')) {
+      return (
+        <i className="fas fa-tree"></i>
+      );
+    } else if (content.includes('museum') || content.includes('gallery') || 
+               content.includes('exhibition') || content.includes('art') || 
+               content.includes('history')) {
+      return (
+        <i className="fas fa-landmark"></i>
+      );
+    } else if (content.includes('shopping') || content.includes('store') || 
+               content.includes('mall') || content.includes('shop')) {
+      return (
+        <i className="fas fa-shopping-bag"></i>
+      );
+    } else if (content.includes('entertainment') || content.includes('show') || 
+               content.includes('theater') || content.includes('theatre') || 
+               content.includes('concert') || content.includes('movie')) {
+      return (
+        <i className="fas fa-film"></i>
+      );
+    } else if (content.includes('fitness') || content.includes('gym') || 
+               content.includes('workout') || content.includes('exercise')) {
+      return (
+        <i className="fas fa-dumbbell"></i>
+      );
+    } else {
+      // Default icon for other activities
+      return (
+        <i className="fas fa-map-marker-alt"></i>
+      );
+    }
+  };
+  
+  // Helper function to enhance description text with links and formatting
+  const enhancedDescription = (text) => {
+    if (!text) return '';
+    
+    // Convert URLs to clickable links
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    let enhancedText = text.replace(urlRegex, url => `<a href="${url}" target="_blank" rel="noopener noreferrer">${url}</a>`);
+    
+    // Add paragraph breaks
+    enhancedText = enhancedText.replace(/\n\n/g, '<br/><br/>');
+    
+    // Convert list-like items to actual lists
+    if (enhancedText.includes('• ') || enhancedText.includes('* ')) {
+      const listItems = enhancedText.split(/[•*]\s/).filter(Boolean);
+      if (listItems.length > 1) {
+        enhancedText = '<ul>' + listItems.map(item => `<li>${item.trim()}</li>`).join('') + '</ul>';
+      }
+    }
+    
+    return enhancedText;
+  };
+  
+  // Update the renderItineraryItems function to include both icons and star ratings
+  const renderItineraryItems = () => {
+    return (
+      <div className="itinerary-items">
+        {enhancedItems.map((item, index) => (
+          <div className="itinerary-item" key={index}>
+            <button 
+              className="remove-item-button" 
+              onClick={() => handleRemoveItem(index)}
+              aria-label="Remove item"
+            >
+              <i className="fas fa-times"></i>
+            </button>
+            
+            <div className="itinerary-time">
+              {item.time}
+            </div>
+            
+            <div className="itinerary-content">
+              <h4 className="itinerary-location">
+                <span className="item-icon">{getItemIcon(item)}</span> 
+                {item.location}
+                {item.linkUrl && (
+                  <a 
+                    href={item.linkUrl} 
+                    target="_blank" 
+                    rel="noopener noreferrer" 
+                    className="location-link"
+                    title={`Open ${item.placeName || item.location} in Google Maps`}
+                  >
+                    <i className="fas fa-map-marker-alt"></i>
+                  </a>
+                )}
+              </h4>
+              
+              {item.rating && renderStarRating(item.rating, item.reviewCount)}
+              
+              <div className="itinerary-description" dangerouslySetInnerHTML={{ __html: enhancedDescription(item.description) }} />
+            </div>
+          </div>
+        ))}
+      </div>
+    );
   };
   
   // If we don't have itinerary data yet
@@ -295,39 +467,7 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
               <p>No itinerary items found. Try generating a new itinerary.</p>
             </div>
           ) : (
-            enhancedItems.map((item) => (
-              <div key={item.id} className="itinerary-item">
-                <div className="itinerary-time">{item.time}</div>
-                <div className="itinerary-details">
-                  <h3>
-                    {item.title}
-                    {item.linkUrl && (
-                      <a 
-                        href={item.linkUrl} 
-                        target="_blank" 
-                        rel="noopener noreferrer" 
-                        className="location-link"
-                        title={`Open ${item.placeName} in Google Maps`}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                          <path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/>
-                        </svg>
-                      </a>
-                    )}
-                  </h3>
-                  <p>{item.description}</p>
-                  <button 
-                    className="remove-item-button" 
-                    onClick={() => removeItem(item.id)}
-                    title="Remove this item"
-                  >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16" fill="currentColor">
-                      <path d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/>
-                    </svg>
-                  </button>
-                </div>
-              </div>
-            ))
+            renderItineraryItems()
           )}
           
           <div className="itinerary-footer">

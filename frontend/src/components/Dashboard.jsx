@@ -25,7 +25,6 @@ const Dashboard = () => {
   const [mapLoadError, setMapLoadError] = useState(null);
   const [selectedPlace, setSelectedPlace] = useState(null);
   const [confirmedRegion, setConfirmedRegion] = useState(null);
-  const [showConfirmHint, setShowConfirmHint] = useState(false);
   const [popularPlaces, setPopularPlaces] = useState([]);
   const [loadingPlaces, setLoadingPlaces] = useState(false);
   const [placesApiError, setPlacesApiError] = useState(false);
@@ -238,15 +237,10 @@ const Dashboard = () => {
       setSelectedRegion(regionData);
       
       // Also set confirmed region when a region is selected
-      // This will trigger the useEffect to fetch popular places
       setConfirmedRegion(regionData);
-      
-      // Show confirmation hint for any selected region (circle or polygon)
-      setShowConfirmHint(true);
     } else {
       setSelectedRegion(null);
       setConfirmedRegion(null);
-      setShowConfirmHint(false);
     }
   };
   
@@ -265,15 +259,7 @@ const Dashboard = () => {
     setDrawingMode(null);
     setPopularPlaces([]); // Clear popular places
     setPlacesApiError(false); // Reset API error state
-    setShowConfirmHint(false); // Hide confirm hint
   };
-
-  // Handler for submitting the explore form - this might no longer be needed if ExplorePopup handles its own generation
-  // const handleExploreSubmit = (formData) => {
-  //   console.log("Explore form submitted:", formData);
-  //   // The ExplorePopup now handles its own lifecycle including closing via its onClose prop
-  //   // setShowExplorePopup(false); // This might be redundant
-  // };
 
   // Add this effect to search for popular places when region is confirmed
   useEffect(() => {
@@ -407,7 +393,6 @@ const Dashboard = () => {
     setDrawingMode(null);
     setPopularPlaces([]);
     setPlacesApiError(false);
-    setShowConfirmHint(false);
   };
 
   // Set drawing mode
@@ -425,25 +410,9 @@ const Dashboard = () => {
     setPlacesApiError(false);
   };
 
-  // Add this new effect for handling key presses (Enter and Escape)
+  // Add this new effect for handling key presses (only Escape now)
   useEffect(() => {
     const handleKeyPress = (e) => {
-      // Handle Enter key for confirming region
-      if (e.key === 'Enter' && selectedRegion) {
-        console.log("Enter pressed - confirming region:", selectedRegion);
-        
-        // Use the map's confirmRegion method if available
-        if (mapRef.current && mapRef.current.confirmRegion) {
-          mapRef.current.confirmRegion();
-        }
-        
-        setConfirmedRegion(selectedRegion);
-        setDrawingMode(null); // Exit drawing mode
-        
-        // Remove the confirmation message
-        setShowConfirmHint(false);
-      }
-      
       // Handle Escape key to exit drawing mode
       if (e.key === 'Escape') {
         if (drawingMode !== null) {
@@ -454,13 +423,11 @@ const Dashboard = () => {
       }
     };
 
-    window.addEventListener('keypress', handleKeyPress);
     window.addEventListener('keydown', handleKeyPress); // Add keydown for Escape key
     return () => {
-      window.removeEventListener('keypress', handleKeyPress);
       window.removeEventListener('keydown', handleKeyPress);
     };
-  }, [selectedRegion, drawingMode]);
+  }, [drawingMode]);
 
   const handleGoToPlace = () => {
     if (selectedPlace && mapRef.current) {
@@ -909,7 +876,6 @@ const Dashboard = () => {
             drawingMode={drawingMode}
             ref={mapRef}
             onLoadStateChange={handleMapLoadStateChange}
-            showConfirmHint={showConfirmHint}
           />
         </ErrorBoundary>
         

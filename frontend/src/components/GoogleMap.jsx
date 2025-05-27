@@ -91,7 +91,7 @@ const defaultOptions = {
   ]
 };
 
-const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingMode, onLoadStateChange, showConfirmHint }, ref) => {
+const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingMode, onLoadStateChange }, ref) => {
   const [map, setMap] = useState(null);
   const [center, setCenter] = useState(defaultCenter);
   const [userLocation, setUserLocation] = useState(null);
@@ -351,13 +351,16 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
         // Show the explore button
         setShowExploreButton(true);
         
+        // Automatically confirm the region
+        const regionData = {
+          type: 'circle',
+          center: center,
+          radius: currentRadius
+        };
+        
         // Notify parent component
         if (onRegionSelect) {
-          onRegionSelect({
-            type: 'circle',
-            center: center,
-            radius: currentRadius
-          });
+          onRegionSelect(regionData);
         }
       }
     };
@@ -397,7 +400,7 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
     // Show explore button
     setShowExploreButton(true);
     
-    // Notify parent component
+    // Notify parent component with confirmed region immediately
     if (onRegionSelect) {
       onRegionSelect(regionData);
     }
@@ -568,7 +571,7 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
     zIndex: 2,
   };
 
-  // Add useEffect for handling keyboard events
+  // Add useEffect for handling keyboard events - only need Escape to exit drawing mode
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -626,20 +629,8 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
       if (map) {
         map.setZoom(zoomLevel);
       }
-    },
-    
-    // Add method to confirm region
-    confirmRegion: () => {
-      if (selectedRegion) {
-        // Notify parent component
-        if (onRegionSelect) {
-          onRegionSelect(selectedRegion);
-        }
-        // Exit drawing mode
-        setDrawingMode(null);
-      }
     }
-  }), [map, selectedRegion, onRegionSelect]);
+  }), [map]);
 
   if (!isLoaded) {
     return <div className="loading">Loading map...</div>;
@@ -705,31 +696,6 @@ const MapComponent = forwardRef(({ onRegionSelect, drawingMode: externalDrawingM
       </GoogleMap>
       
       {isMapLoaded && renderMapControls()}
-      
-      {/* Confirmation instruction for selected region */}
-      {selectedRegion && showConfirmHint && (
-        <div className="drawing-instructions confirm-instructions">
-          <p>Press enter to confirm selection</p>
-        </div>
-      )}
-      
-      {/* Explore button */}
-      {showExploreButton && (
-        <div className="explore-button-container">
-          <button className="explore-button" onClick={() => onRegionSelect && onRegionSelect(selectedRegion)}>
-            Explore
-          </button>
-        </div>
-      )}
-      
-      {/* Clear region button */}
-      {selectedRegion && (
-        <div className="clear-region-button-container">
-          <button className="clear-region-button" onClick={handleClearRegion}>
-            Clear
-          </button>
-        </div>
-      )}
       
       {/* Drawing instructions with temporary display */}
       {showInstructions && drawingMode === 'polygon' && (

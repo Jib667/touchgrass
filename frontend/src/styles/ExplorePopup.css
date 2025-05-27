@@ -310,16 +310,16 @@
 }
 
 .surprise-type-selector label {
+  display: block;
   color: rgba(255, 255, 255, 0.8);
   font-size: 0.9rem;
-  display: block;
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .surprise-options {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid rgba(157, 255, 176, 0.1);
 }
 
 .surprise-option {

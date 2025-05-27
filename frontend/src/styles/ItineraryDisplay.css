@@ -88,16 +88,22 @@
 }
 
 .itinerary-time {
-  flex: 0 0 90px;
+  flex: 0 0 110px;
   font-weight: 600;
   color: var(--mint-green);
   font-size: 1rem;
   background: rgba(157, 255, 176, 0.1);
-  padding: 6px 10px;
-  border-radius: 6px;
+  padding: 8px 12px;
+  border-radius: 8px;
   text-align: center;
   height: fit-content;
   margin-top: 4px;
+  white-space: nowrap;
+  line-height: 1.4;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
 }
 
 .itinerary-details {
@@ -357,6 +363,14 @@
     width: 100%;
     justify-content: center;
   }
+  
+  .itinerary-time {
+    flex: 0 0 auto;
+    width: 120px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    align-self: flex-start;
+  }
 }
 
 /* Add disabled button styles */
@@ -454,4 +468,99 @@
   .itinerary-details p {
     font-size: 0.9rem;
   }
+}
+
+/* Item icon styles */
+.item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 8px;
+  color: var(--mint-green);
+  opacity: 0.9;
+}
+
+/* Star rating styles */
+.item-rating {
+  display: flex;
+  align-items: center;
+  margin-top: 8px;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.stars {
+  display: flex;
+  align-items: center;
+}
+
+.star {
+  font-size: 1.1rem;
+  line-height: 1;
+}
+
+.full-star {
+  color: #ffc107;
+}
+
+.half-star {
+  position: relative;
+  color: #ffc107;
+  opacity: 0.6;
+}
+
+.empty-star {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+.review-count {
+  font-size: 0.85rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-left: 4px;
+}
+
+/* Description content styles */
+.itinerary-description {
+  margin-top: 8px;
+  color: rgba(255, 255, 255, 0.85);
+  line-height: 1.5;
+  font-size: 0.95rem;
+}
+
+.itinerary-description a {
+  color: var(--mint-green);
+  text-decoration: none;
+  border-bottom: 1px dotted var(--mint-green);
+  transition: all 0.2s ease;
+}
+
+.itinerary-description a:hover {
+  color: #b3ffca;
+  border-bottom-color: #b3ffca;
+}
+
+.itinerary-description ul {
+  margin: 8px 0;
+  padding-left: 18px;
+}
+
+.itinerary-description li {
+  margin-bottom: 4px;
+}
+
+.itinerary-location {
+  margin: 0 0 8px 0;
+  font-size: 1.2rem;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+}
+
+.itinerary-item .itinerary-content {
+  flex: 1;
+  padding-left: 16px;
+  padding: 0 0 0 16px;
+  max-height: none;
+  overflow-y: visible;
 } 

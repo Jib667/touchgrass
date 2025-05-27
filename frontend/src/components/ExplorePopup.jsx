@@ -432,33 +432,34 @@ const TripTypeSelector = ({ tripType, onTripTypeChange, surpriseType, onSurprise
       </div>
       
       {tripType === 'surprise' && (
-        <div className="surprise-options">
-          <h4>Surprise Style:</h4>
-          <div className="surprise-type-options">
-            <div 
-              className={`surprise-type-option ${surpriseType === 'niche' ? 'selected' : ''}`}
-              onClick={() => onSurpriseTypeChange('niche')}
-            >
-              <div className="surprise-type-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                  <path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/>
-                </svg>
-              </div>
-              <span>Go Niche</span>
-              <p>Unique, off-the-beaten-path experiences</p>
+        <div className="trip-type-options surprise-options">
+          <div 
+            className={`trip-type-option ${surpriseType === 'popular' ? 'selected' : ''}`}
+            onClick={() => onSurpriseTypeChange('popular')}
+          >
+            <div className="trip-type-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6h-6z"/>
+              </svg>
             </div>
-            
-            <div 
-              className={`surprise-type-option ${surpriseType === 'mainstream' ? 'selected' : ''}`}
-              onClick={() => onSurpriseTypeChange('mainstream')}
-            >
-              <div className="surprise-type-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
-                  <path d="M16 6l2.29 2.29-4.88 4.88-4-4L2 16.59 3.41 18l6-6 4 4 6.3-6.29L22 12V6h-6z"/>
-                </svg>
-              </div>
-              <span>Go Mainstream</span>
-              <p>Popular attractions and classic activities</p>
+            <div className="trip-type-details">
+              <h4>Popular Attractions</h4>
+              <p>Classic destinations and must-see places</p>
+            </div>
+          </div>
+          
+          <div 
+            className={`trip-type-option ${surpriseType === 'niche' ? 'selected' : ''}`}
+            onClick={() => onSurpriseTypeChange('niche')}
+          >
+            <div className="trip-type-icon">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
+                <path d="M19 9l1.25-2.75L23 5l-2.75-1.25L19 1l-1.25 2.75L15 5l2.75 1.25L19 9zm-7.5.5L9 4 6.5 9.5 1 12l5.5 2.5L9 20l2.5-5.5L17 12l-5.5-2.5zM19 15l-1.25 2.75L15 19l2.75 1.25L19 23l1.25-2.75L23 19l-2.75-1.25L19 15z"/>
+              </svg>
+            </div>
+            <div className="trip-type-details">
+              <h4>Off the Beaten Path</h4>
+              <p>Unique, hidden gems and local favorites</p>
             </div>
           </div>
         </div>
@@ -710,66 +711,12 @@ const ExplorePopup = ({ region, onClose }) => {
               
               <div className="form-section">
                 <h3>What type of adventure do you want?</h3>
-                <div className="trip-type-options">
-                  <div 
-                    className={`trip-type-option ${tripType === 'custom' ? 'selected' : ''}`}
-                    onClick={() => handleTripTypeChange('custom')}
-                  >
-                    <div className="trip-type-icon">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                        <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                      </svg>
-                    </div>
-                    <div className="trip-type-details">
-                      <h4>Custom Trip</h4>
-                      <p>Choose activities and locations based on your preferences</p>
-                    </div>
-                  </div>
-                  
-                  <div 
-                    className={`trip-type-option ${tripType === 'surprise' ? 'selected' : ''}`}
-                    onClick={() => handleTripTypeChange('surprise')}
-                  >
-                    <div className="trip-type-icon">
-                      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24" fill="currentColor">
-                        <path d="M16 6.5l3 5.5-3 5.5H8l-3-5.5L8 6.5h8M16 4H8c-.77 0-1.47.39-1.88 1.08l-3 5.5c-.41.69-.41 1.65 0 2.34l3 5.5c.41.69 1.11 1.08 1.88 1.08h8c.77 0 1.47-.39 1.88-1.08l3-5.5c.41-.69.41-1.65 0-2.34l-3-5.5C17.47 4.39 16.77 4 16 4z"/>
-                        <path d="M12 17.5c.83 0 1.5-.67 1.5-1.5s-.67-1.5-1.5-1.5-1.5.67-1.5 1.5.67 1.5 1.5 1.5zM13.5 12V7h-3v1h2v4h1z"/>
-                      </svg>
-                    </div>
-                    <div className="trip-type-details">
-                      <h4>Surprise Me</h4>
-                      <p>Get a randomly generated itinerary tailored to this area</p>
-                    </div>
-                  </div>
-                </div>
-                
-                {tripType === 'surprise' && (
-                  <div className="surprise-type-selector">
-                    <label>I prefer:</label>
-                    <div className="surprise-options">
-                      <div className="surprise-option">
-                        <input
-                          type="radio"
-                          id="popular"
-                          name="surprise-type"
-                          checked={surpriseType === 'popular'}
-                          onChange={() => handleSurpriseTypeChange('popular')}
-                        />
-                        <label htmlFor="popular">Popular attractions</label>
-                      </div>
-                      <div className="surprise-option">
-                        <input
-                          type="radio"
-                          id="niche"
-                          name="surprise-type"
-                          checked={surpriseType === 'niche'}
-                          onChange={() => handleSurpriseTypeChange('niche')}
-                        />
-                        <label htmlFor="niche">Off the beaten path</label>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <TripTypeSelector 
+                  tripType={tripType}
+                  onTripTypeChange={handleTripTypeChange}
+                  surpriseType={surpriseType}
+                  onSurpriseTypeChange={handleSurpriseTypeChange}
+                />
               </div>
               
               {tripType === 'custom' && (

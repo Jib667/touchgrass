@@ -4,7 +4,7 @@ import axios from 'axios';
 /**
  * Generates an itinerary based on user input and places in the selected region
  * @param {Object} formData - User input data
- * @param {Object} userPreferences - User profile preferences 
+ * @param {Object} userPreferences - User profile preferences (ignored, using only form data)
  * @returns {Object} Parsed itinerary
  */
 export const generateItinerary = async (formData, userPreferences) => {
@@ -26,7 +26,7 @@ export const generateItinerary = async (formData, userPreferences) => {
     console.log("Grouped places by category:", Object.keys(groupedPlaces).map(key => `${key}: ${groupedPlaces[key].length}`));
     
     // 3. Create prompt for Gemini with ALL places
-    const prompt = createGeminiPrompt(formData, groupedPlaces, userPreferences);
+    const prompt = createGeminiPrompt(formData, groupedPlaces);
     
     // 4. Call Gemini API
     const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
@@ -65,10 +65,9 @@ export const generateItinerary = async (formData, userPreferences) => {
  * Creates a prompt for Gemini API based on user preferences and places
  * @param {Object} formData - User input from the form
  * @param {Object} groupedPlaces - Places grouped by category
- * @param {Object} userPreferences - User profile preferences
  * @returns {string} - Prompt for Gemini API
  */
-const createGeminiPrompt = (formData, groupedPlaces, userPreferences) => {
+const createGeminiPrompt = (formData, groupedPlaces) => {
   const { timeRange, tripType, surpriseType, activities, customActivity, allActivityCategories } = formData;
   
   // Format start and end times for better readability
@@ -76,19 +75,24 @@ const createGeminiPrompt = (formData, groupedPlaces, userPreferences) => {
   const endTime = timeRange.end;
   
   // Start building the prompt
-  let prompt = `You are a local travel guide with deep knowledge about interesting places. Create a detailed itinerary for someone exploring an area with the following available places:\n\n`;
+  let prompt = `You are a local travel guide with deep knowledge about interesting places. Create a detailed itinerary for someone exploring an area with the following available places. IT IS CRITICAL THAT YOU ONLY USE PLACES FROM THESE LISTS:\n\n`;
   
-  // Add places data organized by category
-  prompt += `AVAILABLE PLACES BY CATEGORY:\n`;
+  // Count total places
+  const totalPlaces = Object.values(groupedPlaces).reduce((acc, places) => acc + places.length, 0);
+  prompt += `TOTAL AVAILABLE PLACES: ${totalPlaces}\n\n`;
+  
+  // Add places data organized by category with ALL places
+  prompt += `AVAILABLE PLACES BY CATEGORY (YOU MUST ONLY SELECT FROM THESE):\n`;
   
   // Add dining options
   prompt += `DINING OPTIONS (${groupedPlaces.dining.length}):\n`;
   groupedPlaces.dining.forEach((place, index) => {
     const name = place.displayName?.text || place.name || 'Unnamed Place';
     const rating = place.rating ? `Rating: ${place.rating}/5` : '';
+    const reviewCount = place.userRatingCount ? `(${place.userRatingCount} reviews)` : '';
     const address = place.formattedAddress || '';
     
-    prompt += `${index + 1}. ${name} - ${rating} ${address}\n`;
+    prompt += `${index + 1}. ${name} - ${rating} ${reviewCount} ${address}\n`;
   });
   
   // Add attractions
@@ -96,9 +100,10 @@ const createGeminiPrompt = (formData, groupedPlaces, userPreferences) => {
   groupedPlaces.attractions.forEach((place, index) => {
     const name = place.displayName?.text || place.name || 'Unnamed Place';
     const rating = place.rating ? `Rating: ${place.rating}/5` : '';
+    const reviewCount = place.userRatingCount ? `(${place.userRatingCount} reviews)` : '';
     const address = place.formattedAddress || '';
     
-    prompt += `${index + 1}. ${name} - ${rating} ${address}\n`;
+    prompt += `${index + 1}. ${name} - ${rating} ${reviewCount} ${address}\n`;
   });
   
   // Add outdoor places
@@ -106,9 +111,10 @@ const createGeminiPrompt = (formData, groupedPlaces, userPreferences) => {
   groupedPlaces.outdoor.forEach((place, index) => {
     const name = place.displayName?.text || place.name || 'Unnamed Place';
     const rating = place.rating ? `Rating: ${place.rating}/5` : '';
+    const reviewCount = place.userRatingCount ? `(${place.userRatingCount} reviews)` : '';
     const address = place.formattedAddress || '';
     
-    prompt += `${index + 1}. ${name} - ${rating} ${address}\n`;
+    prompt += `${index + 1}. ${name} - ${rating} ${reviewCount} ${address}\n`;
   });
   
   // Add shopping places
@@ -116,9 +122,10 @@ const createGeminiPrompt = (formData, groupedPlaces, userPreferences) => {
   groupedPlaces.shopping.forEach((place, index) => {
     const name = place.displayName?.text || place.name || 'Unnamed Place';
     const rating = place.rating ? `Rating: ${place.rating}/5` : '';
+    const reviewCount = place.userRatingCount ? `(${place.userRatingCount} reviews)` : '';
     const address = place.formattedAddress || '';
     
-    prompt += `${index + 1}. ${name} - ${rating} ${address}\n`;
+    prompt += `${index + 1}. ${name} - ${rating} ${reviewCount} ${address}\n`;
   });
   
   // Add other places
@@ -126,39 +133,57 @@ const createGeminiPrompt = (formData, groupedPlaces, userPreferences) => {
   groupedPlaces.other.forEach((place, index) => {
     const name = place.displayName?.text || place.name || 'Unnamed Place';
     const rating = place.rating ? `Rating: ${place.rating}/5` : '';
+    const reviewCount = place.userRatingCount ? `(${place.userRatingCount} reviews)` : '';
     const address = place.formattedAddress || '';
     
-    prompt += `${index + 1}. ${name} - ${rating} ${address}\n`;
+    prompt += `${index + 1}. ${name} - ${rating} ${reviewCount} ${address}\n`;
   });
   
   // Add user preferences
-  prompt += `\nUSER PREFERENCES:\n`;
+  prompt += `\nIMPORTANT - THESE ARE THE ONLY USER PREFERENCES TO CONSIDER:\n`;
   prompt += `- Time available: ${startTime} to ${endTime}\n`;
   
+  // Specific instructions based on trip type
   if (tripType === 'surprise') {
-    prompt += `- Trip type: Surprise (${surpriseType === 'niche' ? 'off the beaten path' : 'popular attractions'})\n`;
+    prompt += `- Trip type: Surprise (${surpriseType === 'niche' ? 'Off the beaten path' : 'Popular attractions'})\n`;
+    
+    if (surpriseType === 'popular') {
+      prompt += `\nPOPULAR ATTRACTIONS INSTRUCTIONS:
+- CRUCIAL: Include the most famous and iconic attractions in the area (e.g., if the White House is in the region, it MUST be included)
+- Prioritize places with the highest ratings and most reviews
+- Focus on well-known tourist attractions that are "must-see" locations
+- Include popular restaurants or dining options that tourists frequently visit
+- Select places that are considered iconic or emblematic of the area\n`;
+    } else {
+      prompt += `\nOFF THE BEATEN PATH INSTRUCTIONS:
+- Focus on hidden gems and lesser-known attractions
+- Prioritize locally-owned establishments with good (but maybe not the highest) ratings
+- Look for places described as "local favorites" or unique mom-and-pop establishments 
+- Avoid the most touristy attractions unless they're truly special
+- Include quirky, unusual, or niche experiences that most tourists might miss\n`;
+    }
   } else {
     prompt += `- Trip type: Custom\n`;
     
     if (activities && activities.length > 0) {
       prompt += `- Selected activities: ${activities.join(', ')}\n`;
+      
+      prompt += `\nCUSTOM TRIP INSTRUCTIONS:
+- CRITICAL: Heavily prioritize the specific activity categories the user selected
+- Make sure EVERY selected activity category is represented in the itinerary
+- Choose the highest-rated places that match these categories
+- Balance the itinerary to focus on the user's explicitly chosen interests\n`;
     }
     
     if (customActivity) {
       prompt += `- User's custom request: "${customActivity}"\n`;
+      prompt += `- IMPORTANT: Incorporate the user's custom request into the itinerary as a priority\n`;
     }
-  }
-  
-  // Add profile preferences if available
-  if (userPreferences) {
-    prompt += `- Travel style: ${userPreferences.travelStyle || 'Not specified'}\n`;
-    prompt += `- Interests: ${userPreferences.interests || 'Not specified'}\n`;
-    prompt += `- Pace: ${userPreferences.pace || 'Not specified'}\n`;
   }
   
   // Add activity categories for context
   if (allActivityCategories) {
-    prompt += `\nACTIVITY CATEGORIES:\n`;
+    prompt += `\nACTIVITY CATEGORIES THE USER COULD SELECT FROM:\n`;
     
     allActivityCategories.forEach(category => {
       prompt += `- ${category.name}: ${category.options.join(', ')}\n`;
@@ -168,22 +193,23 @@ const createGeminiPrompt = (formData, groupedPlaces, userPreferences) => {
   // Add specific instructions for the itinerary format
   prompt += `\nCREATE AN ITINERARY that:
 1. Fits within the time range ${startTime} to ${endTime}
-2. Includes only places from the provided lists above
-3. Incorporates the user's preferences and selected activities
+2. ONLY includes places from the provided lists above - do not invent or suggest places not on these lists
+3. Incorporates ONLY the user's form preferences (not any inferred preferences)
 4. Provides a logical flow with appropriate travel time between locations
 5. Includes specific suggestions for activities at each location
 6. For each item, include the exact name of the place as listed above
-7. Format each itinerary item with a time, location name, and detailed description
-8. Include meal suggestions at appropriate times
+7. Include the place ratings and review counts where available
+8. Format each itinerary item with a time (in AM/PM format), location name, and detailed description
+9. Include meal suggestions at appropriate times
+10. DO NOT include any "End of Itinerary" or similar ending section
+11. Prioritize the best places according to the trip type selected (popular, off-beaten-path, or custom)
 
 FORMAT THE ITINERARY LIKE THIS:
-## Your Adventure: [Catchy Title]
+### [Time in AM/PM] - [Place Name] 
+[Detailed description with specific recommendations and include the rating in the description]
 
-### [Time] - [Place Name]
-[Detailed description with specific recommendations]
-
-### [Time] - [Place Name]
-[Detailed description with specific recommendations]
+### [Time in AM/PM] - [Place Name]
+[Detailed description with specific recommendations and include the rating in the description]
 
 ...and so on.
 `;
@@ -255,66 +281,78 @@ const parseItineraryItems = (text) => {
     // Find all itinerary items
     // Look for patterns like "### 10:00 AM - Museum Visit" or "### [10:00 AM] - Museum Visit"
     const itemsRegex = /###\s*(?:\[)?(\d{1,2}[:\.]\d{2}(?:\s*[AP]M)?|\d{1,2}\s*[AP]M)(?:\])?\s*-\s*([^\n]+)(?:\n)([\s\S]*?)(?=(?:###|\n\s*$|$))/gi;
-    const matches = [...text.matchAll(itemsRegex)];
+    const matches = Array.from(text.matchAll(itemsRegex));
     
+    // Parse each match into a structured item
     const items = matches.map(match => {
-      const time = formatTime(match[1].trim());
-      const location = match[2].trim();
+      let time = match[1].trim();
+      let location = match[2].trim();
       const description = match[3].trim();
+      
+      let rating = null;
+      let reviewCount = null;
+      
+      // --- More robust rating and review count extraction ---
+      const combinedText = `${location} ${description}`; // Combine location and description for easier searching
+      
+      // Regex for rating (e.g., "4.5/5", "4.5 stars", "Rated 4.5")
+      const ratingRegex = /(\d\.\d|\d)(?:\s*\/\s*5|\s*stars?)/i;
+      const ratingMatch = combinedText.match(ratingRegex);
+      if (ratingMatch && ratingMatch[1]) {
+        rating = parseFloat(ratingMatch[1]);
+      }
+      
+      // Regex for review count (e.g., "(123 reviews)", "123 ratings", "based on 123 reviews")
+      const reviewRegex = /(\d+)\s*(?:reviews?|ratings?)/i;
+      const reviewMatch = combinedText.match(reviewRegex);
+      if (reviewMatch && reviewMatch[1]) {
+        reviewCount = parseInt(reviewMatch[1], 10);
+      }
+      
+      // Attempt to remove rating/review text from location if it was found there to avoid display duplication
+      if (rating && location.match(ratingRegex)) {
+        location = location.replace(ratingRegex, '').replace(/\(\s*\)/g, '').trim(); // Remove pattern and empty parens
+      }
+      if (reviewCount && location.match(reviewRegex)) {
+         location = location.replace(reviewRegex, '').replace(/\(\s*\)/g, '').trim();
+      }
+      location = location.replace(/Rating:\s*/i, '').replace(/Reviews:\s*/i, '').trim();
+      // --- End of new extraction logic ---
+
+      time = formatTime(time);
       
       return {
         time,
         location,
-        description
+        description,
+        rating,
+        reviewCount
       };
     });
     
-    console.log(`Parsed ${items.length} itinerary items`);
-    
-    // If no items were parsed, look for alternative formats
-    if (items.length === 0) {
-      // Try looking for "Time - Activity" format
-      const altRegex = /(\d{1,2}[:\.]\d{2}(?:\s*[AP]M)?|\d{1,2}\s*[AP]M)\s*-\s*([^\n]+)(?:\n)([\s\S]*?)(?=(?:\d{1,2}[:\.]\d{2}|\d{1,2}\s*[AP]M|\n\s*$|$))/gi;
-      const altMatches = [...text.matchAll(altRegex)];
+    // Sort items by time
+    items.sort((a, b) => {
+      const timeA = a.time;
+      const timeB = b.time;
       
-      const altItems = altMatches.map(match => {
-        const time = formatTime(match[1].trim());
-        const location = match[2].trim();
-        const description = match[3].trim();
+      // Extract hours and minutes from time strings
+      const parseTimeString = (timeStr) => {
+        const match = timeStr.match(/(\d+)(?::(\d+))?\s*([AP]M)/i);
+        if (!match) return 0;
         
-        return {
-          time,
-          location,
-          description
-        };
-      });
-      
-      if (altItems.length > 0) {
-        console.log(`Found ${altItems.length} items in alternative format`);
-        return altItems;
-      }
-      
-      // If still no items, check for bold or strong text as location names
-      const boldRegex = /(\d{1,2}[:\.]\d{2}(?:\s*[AP]M)?|\d{1,2}\s*[AP]M)(?:\s*[-–]\s*)?(?:\*\*|\*|__)([^*_\n]+)(?:\*\*|\*|__)(?:\n|:\s*)([\s\S]*?)(?=(?:\d{1,2}[:\.]\d{2}|\d{1,2}\s*[AP]M|\n\s*$|$))/gi;
-      const boldMatches = [...text.matchAll(boldRegex)];
-      
-      const boldItems = boldMatches.map(match => {
-        const time = formatTime(match[1].trim());
-        const location = match[2].trim();
-        const description = match[3].trim();
+        let hours = parseInt(match[1], 10);
+        const minutes = match[2] ? parseInt(match[2], 10) : 0;
+        const period = match[3].toUpperCase();
         
-        return {
-          time,
-          location,
-          description
-        };
-      });
+        // Convert to 24-hour format for comparison
+        if (period === 'PM' && hours < 12) hours += 12;
+        if (period === 'AM' && hours === 12) hours = 0;
+        
+        return hours * 60 + minutes;
+      };
       
-      if (boldItems.length > 0) {
-        console.log(`Found ${boldItems.length} items with bold location names`);
-        return boldItems;
-      }
-    }
+      return parseTimeString(timeA) - parseTimeString(timeB);
+    });
     
     return items;
   } catch (error) {
@@ -324,38 +362,33 @@ const parseItineraryItems = (text) => {
 };
 
 /**
- * Formats time strings to AM/PM format
+ * Formats a time string to consistent AM/PM format
  * @param {string} timeString - Time string to format
  * @returns {string} - Formatted time string
  */
 const formatTime = (timeString) => {
-  // If already in AM/PM format, return as is
+  if (!timeString) return '';
+  
+  // Check if it's already in a reasonable AM/PM format
   if (timeString.includes('AM') || timeString.includes('PM')) {
-    return timeString;
+    // Ensure proper spacing between time and AM/PM
+    return timeString.replace(/(\d+)(?::(\d+))?\s*([AP]M)/i, '$1:$2 $3')
+      .replace(':  ', ':00 '); // Handle cases where minutes are missing
   }
   
-  // Try to parse 24-hour format (15:30)
-  const timeMatch = timeString.match(/(\d{1,2})[:\.](\d{2})/);
-  if (timeMatch) {
-    let hours = parseInt(timeMatch[1], 10);
-    const minutes = parseInt(timeMatch[2], 10);
+  // Try to parse 24-hour format (e.g., "14:30")
+  const match24Hour = timeString.match(/(\d+)[:\.](\d+)/);
+  if (match24Hour) {
+    const hours = parseInt(match24Hour[1], 10);
+    const minutes = parseInt(match24Hour[2], 10);
     
     // Convert to 12-hour format
     const period = hours >= 12 ? 'PM' : 'AM';
-    hours = hours % 12 || 12; // Convert 0 to 12
+    const hours12 = hours % 12 || 12;
     
-    return `${hours}:${minutes.toString().padStart(2, '0')} ${period}`;
+    return `${hours12}:${minutes.toString().padStart(2, '0')} ${period}`;
   }
   
-  // If it's just a number (like "9"), assume it's an hour
-  if (/^\d+$/.test(timeString)) {
-    const hours = parseInt(timeString, 10);
-    const period = hours >= 12 ? 'PM' : 'AM';
-    const formattedHours = hours % 12 || 12;
-    
-    return `${formattedHours}:00 ${period}`;
-  }
-  
-  // If we can't parse it, return as is
+  // If all else fails, return the original
   return timeString;
 }; 
