@@ -276,8 +276,8 @@ const Dashboard = () => {
     setPlacesApiError(false);
 
     const fetchPopularPlacesREST = async ({ lat, lng, radius }) => {
-      const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-      const url = `https://places.googleapis.com/v1/places:searchNearby?key=${apiKey}`;
+      const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+      const proxyUrl = `${backendUrl}/api/places/nearby`;
       
       // Calculate how many places to fetch based on region size
       // For small regions (< 500m), show 5 places
@@ -327,18 +327,17 @@ const Dashboard = () => {
         }
       };
       try {
-        const response = await fetch(url, {
+        const response = await fetch(proxyUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Goog-FieldMask": "places.displayName,places.rating,places.userRatingCount,places.location"
           },
           body: JSON.stringify(body)
         });
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error('Places API error response:', errorText);
-          throw new Error("Places API error: " + errorText);
+          const errorData = await response.json();
+          console.error('Backend Places API error response:', errorData.error || errorData.details || errorData);
+          throw new Error("Backend Places API error: " + (errorData.error || JSON.stringify(errorData.details)));
         }
         const data = await response.json();
         return data.places || [];
@@ -541,33 +540,33 @@ const Dashboard = () => {
     setAutocompleteLoading(true);
     setAutocompleteError(null);
     
-    const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-    const url = `https://places.googleapis.com/v1/places:autocomplete?key=${apiKey}`;
+    const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+    const proxyUrl = `${backendUrl}/api/places/autocomplete`;
+
     const body = {
       input,
       languageCode: 'en'
     };
     
     try {
-      const response = await fetch(url, {
+      const response = await fetch(proxyUrl, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "X-Goog-FieldMask": "suggestions.placePrediction.placeId,suggestions.placePrediction.text.text,suggestions.placePrediction.structuredFormat.mainText.text,suggestions.placePrediction.structuredFormat.secondaryText.text"
         },
         body: JSON.stringify(body)
       });
       
       if (!response.ok) {
-        const errorText = await response.text();
-        setAutocompleteError(errorText);
+        const errorData = await response.json();
+        setAutocompleteError(errorData.error || JSON.stringify(errorData.details));
         setAutocompleteSuggestions([]);
         setAutocompleteLoading(false);
         return;
       }
       
       const data = await response.json();
-      setAutocompleteSuggestions(data.suggestions || []);
+      setAutocompleteSuggestions(data.predictions || data.suggestions || []);
       setAutocompleteLoading(false);
     } catch (error) {
       setAutocompleteError(error.message);
@@ -655,25 +654,29 @@ const Dashboard = () => {
                       setAutocompleteLoading(true);
                       
                       try {
-                        const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-                        const url = `https://places.googleapis.com/v1/places/${pred.placeId}?key=${apiKey}`;
-                        const response = await fetch(url, {
+                        const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+                        const proxyUrl = `${backendUrl}/api/places/details/${pred.placeId}`;
+                        
+                        const response = await fetch(proxyUrl, {
                           method: "GET",
                           headers: {
                             "Content-Type": "application/json",
-                            "X-Goog-FieldMask": "location"
                           }
                         });
                         if (response.ok) {
                           const data = await response.json();
-                          if (data.location && mapRef.current) {
-                            const { latitude, longitude } = data.location;
-                            mapRef.current.panTo({ lat: latitude, lng: longitude });
+                          if (data.result && data.result.geometry && data.result.geometry.location && mapRef.current) {
+                            const { lat, lng } = data.result.geometry.location;
+                            mapRef.current.panTo({ lat: lat, lng: lng });
+                            mapRef.current.setZoom(15);
+                          } else if (data.result && data.result.location && mapRef.current) {
+                            const { latitude, longitude } = data.result.location;
+                             mapRef.current.panTo({ lat: latitude, lng: longitude });
                             mapRef.current.setZoom(15);
                           }
                         }
                       } catch (err) {
-                        setAutocompleteError("Could not pan to place location.");
+                        setAutocompleteError("Could not pan to place location via backend.");
                       } finally {
                         setAutocompleteLoading(false);
                       }

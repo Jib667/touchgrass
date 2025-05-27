@@ -28,36 +28,49 @@ export const generateItinerary = async (formData, userPreferences) => {
     // 3. Create prompt for Gemini with ALL places
     const prompt = createGeminiPrompt(formData, groupedPlaces);
     
-    // 4. Call Gemini API
-    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`;
-    
-    console.log('Calling Gemini API to generate itinerary...');
+    // 4. Call the backend proxy for Gemini API
+    console.log('Calling backend proxy to generate itinerary...');
+    // Assuming your backend is running on http://localhost:8000 or similar
+    // In a production environment, this URL should be configurable
+    const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000'; 
     const response = await axios.post(
-      url,
+      `${backendUrl}/api/generate-itinerary`,
+      { prompt: prompt }, // Send the prompt in the request body
       {
-        contents: [
-          {
-            parts: [
-              { text: prompt }
-            ]
-          }
-        ],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
+        headers: {
+          'Content-Type': 'application/json'
         }
       }
     );
     
     // 5. Parse and format the response
-    console.log('Received response from Gemini API');
-    const parsedItinerary = parseGeminiResponse(response.data);
+    // The backend now returns a structure like {"itinerary_text": "..."}
+    // or {"error": "..."}
+    console.log('Received response from backend proxy for Gemini');
+    
+    if (response.data.error) {
+      console.error("Error from backend itinerary generation:", response.data.error);
+      throw new Error(response.data.error);
+    }
+
+    if (!response.data.itinerary_text) {
+      console.error('No itinerary_text found in backend response');
+      return {
+        raw: 'Sorry, we could not generate an itinerary at this time. Please try again later.',
+        items: []
+      };
+    }
+    
+    // The backend sends the raw text, so we parse it here as before
+    // but we need to adapt parseGeminiResponse to expect just the text, not the full Google API structure
+    const parsedItinerary = parseGeminiResponseText(response.data.itinerary_text);
     
     return parsedItinerary;
   } catch (error) {
-    console.error('Error generating itinerary:', error);
-    throw error;
+    console.error('Error generating itinerary via backend:', error.response ? error.response.data : error.message);
+    // If the error has a response object from axios, use its data, otherwise use the message
+    const errorMessage = error.response?.data?.error || error.message || 'Failed to generate itinerary. Please try again.';
+    throw new Error(errorMessage);
   }
 };
 
@@ -225,27 +238,27 @@ FORMAT THE ITINERARY LIKE THIS:
 const parseGeminiResponse = (response) => {
   try {
     // Debug the complete response structure
-    console.log('Full Gemini API response:', JSON.stringify(response, null, 2));
+    // This function is now less relevant as the backend sends just the text or an error
+    console.log('Full Gemini API response (no longer directly from Google):', JSON.stringify(response, null, 2));
     
-    // Get the generated text from the response
-    let generatedText = '';
+    // Get the generated text from the response 
+    // This assumes the backend proxy returns { itinerary_text: "..." }
+    let generatedText = response.itinerary_text || ''; 
     
-    if (response.candidates && response.candidates.length > 0) {
-      const firstCandidate = response.candidates[0];
-      if (firstCandidate.content && firstCandidate.content.parts && firstCandidate.content.parts.length > 0) {
-        generatedText = firstCandidate.content.parts[0].text;
-      }
+    if (response.error) {
+      console.error('Error from backend in parseGeminiResponse:', response.error);
+      generatedText = `Error: ${response.error}`;
     }
     
     if (!generatedText) {
-      console.error('No generated text found in API response');
+      console.error('No generated text found in API response (from backend)');
       return {
         raw: 'Sorry, we could not generate an itinerary at this time. Please try again later.',
         items: []
       };
     }
     
-    console.log('Raw Gemini response text:', generatedText);
+    console.log('Raw Gemini response text (from backend):', generatedText);
     
     // Parse the raw text into itinerary items
     const itineraryItems = parseItineraryItems(generatedText);
@@ -255,11 +268,40 @@ const parseGeminiResponse = (response) => {
       items: itineraryItems
     };
   } catch (error) {
-    console.error('Error parsing Gemini response:', error);
-    
+    console.error('Error parsing itinerary text from backend:', error);
     return {
       raw: 'An error occurred while generating your itinerary. Please try again.',
       items: []
+    };
+  }
+};
+
+/**
+ * New function to specifically parse the text received from our backend
+ * @param {string} text - The raw itinerary text from the backend
+ * @returns {Object} - Parsed itinerary data { raw, items }
+ */
+const parseGeminiResponseText = (text) => {
+  try {
+    if (!text) {
+      console.error('No text provided to parseGeminiResponseText');
+      return {
+        raw: 'Sorry, we could not generate an itinerary due to missing text. Please try again later.',
+        items: []
+      };
+    }
+    console.log('Raw itinerary text (from backend for parsing):', text);
+    const itineraryItems = parseItineraryItems(text);
+    return {
+      raw: text,
+      items: itineraryItems
+    };
+  } catch (error) {
+    console.error('Error parsing itinerary text from backend:', error);
+    return {
+      raw: text, // Return the raw text even if parsing fails, for debugging
+      items: [],
+      error: 'Failed to parse the generated itinerary: ' + error.message
     };
   }
 };

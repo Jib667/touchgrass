@@ -116,14 +116,14 @@ export const fetchPlacesInRegion = async (region, types = []) => {
  * @returns {Promise<Array>} - Array of place objects
  */
 async function fetchPlacesInCircle(center, radius) {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-  const url = `https://places.googleapis.com/v1/places:searchNearby?key=${apiKey}`;
-  
+  const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+  const proxyUrl = `${backendUrl}/api/places/nearby`;
+
   // Adjust radius if it's too large for the API
   const adjustedRadius = Math.min(radius, 50000); // 50km max radius
   
   try {
-    console.log("Fetching places with comprehensive approach");
+    console.log("Fetching places with comprehensive approach via backend proxy");
     
     // Array to collect all places
     let allPlaces = [];
@@ -156,29 +156,29 @@ async function fetchPlacesInCircle(center, radius) {
         },
         includedTypes: types,
         maxResultCount: 20, // Set to max allowed value (20)
-        rankPreference: "POPULARITY" // Get the most popular places first
+        rankPreference: "POPULARITY", // Get the most popular places first
       };
       
       try {
-        const response = await fetch(url, {
+        // Call the backend proxy
+        const response = await fetch(proxyUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.types,places.photos,places.regularOpeningHours"
           },
           body: JSON.stringify(body)
         });
         
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Places API error for type ${types.join(',')} (${response.status}): ${errorText}`);
+          const errorData = await response.json();
+          console.error(`Backend proxy error for type ${types.join(',')} (${response.status}):`, errorData.error || errorData.details || errorData);
           return [];
         }
         
         const data = await response.json();
         return data.places || [];
       } catch (error) {
-        console.error(`Error fetching places for types ${types.join(',')}:`, error);
+        console.error(`Error fetching places for types ${types.join(',')} via backend:`, error);
         return [];
       }
     });
@@ -200,25 +200,25 @@ async function fetchPlacesInCircle(center, radius) {
       };
       
       try {
-        const response = await fetch(url, {
+        // Call the backend proxy
+        const response = await fetch(proxyUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.types,places.photos,places.regularOpeningHours"
           },
           body: JSON.stringify(body)
         });
         
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`General Places API error (${response.status}): ${errorText}`);
+          const errorData = await response.json();
+          console.error(`General backend proxy error (${response.status}):`, errorData.error || errorData.details || errorData);
           return [];
         }
         
         const data = await response.json();
         return data.places || [];
       } catch (error) {
-        console.error("Error in general places search:", error);
+        console.error("Error in general places search via backend:", error);
         return [];
       }
     })();
@@ -246,11 +246,10 @@ async function fetchPlacesInCircle(center, radius) {
     
     return allPlaces;
   } catch (error) {
-    console.error("Error in fetchPlacesInCircle:", error);
-    
-    // Fallback to textSearch if nearbySearch fails
-    console.log("Falling back to text search...");
-    return await fetchPlacesWithTextSearch(center, adjustedRadius);
+    console.error("Error in fetchPlacesInCircle (via backend):", error);
+    // If we still have an error here, it might be a network issue or unhandled case
+    // Consider falling back to text search if appropriate, or re-throwing
+    throw error; // Re-throw if it's a critical failure
   }
 }
 
@@ -261,11 +260,11 @@ async function fetchPlacesInCircle(center, radius) {
  * @returns {Promise<Array>} - Array of place objects
  */
 async function fetchPlacesWithTextSearch(center, radius) {
-  const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
-  const url = `https://places.googleapis.com/v1/places:searchText?key=${apiKey}`;
-  
+  const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
+  const proxyUrl = `${backendUrl}/api/places/text-search`;
+
   try {
-    console.log("Attempting multiple text searches as fallback...");
+    console.log("Attempting multiple text searches as fallback via backend proxy...");
     
     // Different search queries to try
     const searchQueries = [
@@ -284,38 +283,40 @@ async function fetchPlacesWithTextSearch(center, radius) {
     const searchPromises = searchQueries.map(async (query) => {
       const body = {
         textQuery: query,
-        locationBias: {
+        locationBias: { // Use locationBias for searchText
           circle: {
-            center: { 
-              latitude: center.lat, 
-              longitude: center.lng 
+            center: {
+              latitude: center.lat,
+              longitude: center.lng
             },
             radius: radius
           }
         },
-        maxResultCount: 20 // Set to max allowed value (20)
+        languageCode: "en", // Optional: specify language
+        maxResultCount: 10  // Limit results per query
       };
       
       try {
-        const response = await fetch(url, {
+        // Call the backend proxy
+        const response = await fetch(proxyUrl, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.location,places.rating,places.userRatingCount,places.priceLevel,places.types,places.photos,places.regularOpeningHours"
+            // API key and X-Goog-FieldMask handled by backend
           },
           body: JSON.stringify(body)
         });
         
         if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`Text search API error for '${query}' (${response.status}): ${errorText}`);
+          const errorData = await response.json();
+          console.error(`Backend text search proxy error for query "${query}" (${response.status}):`, errorData.error || errorData.details || errorData);
           return [];
         }
         
         const data = await response.json();
         return data.places || [];
       } catch (error) {
-        console.error(`Error in text search for '${query}':`, error);
+        console.error(`Error fetching text search for query "${query}" via backend:`, error);
         return [];
       }
     });
@@ -331,15 +332,12 @@ async function fetchPlacesWithTextSearch(center, radius) {
       }
     });
     
-    console.log(`Text search fallback found ${allPlaces.length} places (before deduplication)`);
+    console.log(`Text search fallback via backend found ${allPlaces.length} places (before deduplication)`);
     
     return allPlaces;
   } catch (error) {
-    console.error("Error in fetchPlacesWithTextSearch:", error);
-    
-    // Last resort - return empty array
-    console.log("All Place API attempts failed. Returning empty array.");
-    return [];
+    console.error("Error in fetchPlacesWithTextSearch (via backend):", error);
+    throw error; // Re-throw if it's a critical failure
   }
 }
 

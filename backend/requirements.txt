@@ -1,9 +1,5 @@
-Flask==2.3.3
-Werkzeug==2.3.7
-python-dotenv==0.19.0
-requests==2.26.0
-flask-cors==3.0.10
-gunicorn==20.1.0
-functions-framework==3.2.0
-firebase-admin==6.2.0
-google-cloud-firestore==2.9.1
+Flask
+Flask-CORS
+requests
+google-generativeai
+python-dotenv
