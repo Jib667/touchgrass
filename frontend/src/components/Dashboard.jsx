@@ -292,14 +292,31 @@ const Dashboard = () => {
       
       const body = {
         includedTypes: [
+          // Attractions & Entertainment
           "tourist_attraction", 
-          "park",
           "museum",
-          "campground",
+          "art_gallery",
           "amusement_park",
           "zoo",
           "aquarium",
-          "art_gallery"
+          "movie_theater",
+          "performing_arts_theater",
+          // Food & Drink
+          "restaurant",
+          "cafe",
+          "bakery",
+          "bar",
+          // Outdoors & Recreation
+          "park",
+          "campground",
+          "hiking_area",
+          // Shopping
+          "shopping_mall",
+          "store",
+          "department_store",
+          "book_store",
+          // Other Points of Interest
+          "historical_landmark"
         ],
         maxResultCount: maxResults,
         locationRestriction: {

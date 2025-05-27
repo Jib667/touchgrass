@@ -265,8 +265,14 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
     const descriptionString = item.description?.toLowerCase() || '';
     const content = locationString + ' ' + descriptionString;
     
-    // Check for specific place types
-    if (content.includes('restaurant') || content.includes('café') || 
+    // Check for specific place types - REORDERED: Park/Outdoor check comes first
+    if (content.includes('park') || content.includes('garden') || 
+               content.includes('hike') || content.includes('trail') || 
+               content.includes('nature') || content.includes('outdoor')) {
+      return (
+        <i className="fas fa-tree"></i>
+      );
+    } else if (content.includes('restaurant') || content.includes('café') || 
         content.includes('cafe') || content.includes('dining') || 
         content.includes('lunch') || content.includes('dinner') || 
         content.includes('breakfast') || content.includes('brunch') || 
@@ -274,12 +280,6 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
         content.includes('eat')) {
       return (
         <i className="fas fa-utensils"></i>
-      );
-    } else if (content.includes('park') || content.includes('garden') || 
-               content.includes('hike') || content.includes('trail') || 
-               content.includes('nature') || content.includes('outdoor')) {
-      return (
-        <i className="fas fa-tree"></i>
       );
     } else if (content.includes('museum') || content.includes('gallery') || 
                content.includes('exhibition') || content.includes('art') || 
