@@ -563,4 +563,23 @@
   padding: 0 0 0 16px;
   max-height: none;
   overflow-y: visible;
+}
+
+/* Ensure Font Awesome icons render correctly by explicitly setting their font-family */
+.itinerary-display .fas {
+  font-family: "Font Awesome 6 Free" !important; /* Use the correct family name for FA6 */
+  font-weight: 900 !important; /* Solid icons are typically in the 900 weight */
+  font-style: normal !important; /* Ensure font-style is not overriding */
+  display: inline-block; /* Ensure display is appropriate */
+  speak: never; /* For accessibility */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Additional specificity for icons within buttons or specific containers if needed */
+.remove-item-button .fas,
+.item-icon .fas,
+.location-link .fas {
+  font-family: "Font Awesome 6 Free" !important;
+  font-weight: 900 !important;
 } 
