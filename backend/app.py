@@ -22,6 +22,12 @@ PLACES_API_KEY = os.getenv('VITE_GOOGLE_MAPS_API_KEY')
 def health_check():
     return jsonify({"status": "ok", "message": "TouchGrass API is running"})
 
+@app.route('/api/maps-key', methods=['GET'])
+def get_maps_key():
+    if not PLACES_API_KEY:
+        return jsonify({"error": "Google Maps API key not configured on server"}), 500
+    return jsonify({"apiKey": PLACES_API_KEY})
+
 @app.route('/api/generate-itinerary', methods=['POST'])
 def generate_itinerary_proxy():
     if not GEMINI_API_KEY:

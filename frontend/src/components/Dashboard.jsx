@@ -264,142 +264,140 @@ const Dashboard = () => {
 
   // Add this effect to search for popular places when region is confirmed
   useEffect(() => {
+    console.log("[Dashboard] useEffect for popular places triggered. ConfirmedRegion:", JSON.stringify(confirmedRegion), "MapScriptLoaded:", mapScriptLoaded);
     if (!confirmedRegion || !mapScriptLoaded) {
-      console.log("Cannot search for places yet. Missing requirements:", {
-        confirmedRegion: !!confirmedRegion,
-        mapScriptLoaded: !!mapScriptLoaded
-      });
+      console.log("[Dashboard] Cannot search for popular places yet. Missing requirements.");
+      if (popularPlaces.length > 0) {
+        setPopularPlaces([]);
+      }
       return;
     }
     
-    // Set loading state and clear error
     setLoadingPlaces(true);
     setPlacesApiError(false);
 
     const fetchPopularPlacesREST = async ({ lat, lng, radius }) => {
       const backendUrl = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000';
       const proxyUrl = `${backendUrl}/api/places/nearby`;
-      
-      // Calculate how many places to fetch based on region size
-      // For small regions (< 500m), show 5 places
-      // For medium regions (500m-2000m), show 10 places
-      // For large regions (> 2000m), show 15 places
-      let maxResults = 5;
-      if (radius > 2000) {
-        maxResults = 15;
-      } else if (radius > 500) {
-        maxResults = 10;
-      }
-      
+      const maxResultsToFetch = 20; 
+      console.log(`[Dashboard] Fetching up to ${maxResultsToFetch} popular place candidates. Radius: ${radius}m`);
       const body = {
         includedTypes: [
-          // Attractions & Entertainment
-          "tourist_attraction", 
-          "museum",
-          "art_gallery",
-          "amusement_park",
-          "zoo",
-          "aquarium",
-          "movie_theater",
-          "performing_arts_theater",
-          // Food & Drink
-          "restaurant",
-          "cafe",
-          "bakery",
-          "bar",
-          // Outdoors & Recreation
-          "park",
-          "campground",
-          "hiking_area",
-          // Shopping
-          "shopping_mall",
-          "store",
-          "department_store",
-          "book_store",
-          // Other Points of Interest
-          "historical_landmark"
+          "tourist_attraction", "museum", "art_gallery", "amusement_park", "zoo", "aquarium",
+          "movie_theater", "performing_arts_theater", "restaurant", "cafe", "bakery", "bar",
+          "park", "campground", "hiking_area", "shopping_mall", "store", "department_store",
+          "book_store", "historical_landmark"
         ],
-        maxResultCount: maxResults,
+        maxResultCount: maxResultsToFetch,
         locationRestriction: {
-          circle: {
-            center: { latitude: lat, longitude: lng },
-            radius: radius
-          }
+          circle: { center: { latitude: lat, longitude: lng }, radius: radius }
         }
       };
       try {
+        console.log("[Dashboard] Fetching popular places with body:", JSON.stringify(body));
         const response = await fetch(proxyUrl, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body)
         });
         if (!response.ok) {
           const errorData = await response.json();
-          console.error('Backend Places API error response:', errorData.error || errorData.details || errorData);
+          console.error('[Dashboard] Backend Places API error response:', errorData.error || errorData.details || errorData);
           throw new Error("Backend Places API error: " + (errorData.error || JSON.stringify(errorData.details)));
         }
         const data = await response.json();
+        console.log("[Dashboard] Received places data from backend:", data.places ? data.places.length : 0, "places");
         return data.places || [];
       } catch (error) {
+        console.error("[Dashboard] Error in fetchPopularPlacesREST:", error);
         throw error;
       }
     };
 
     const getRegionCenterAndRadius = (region) => {
+      if (!region) return null;
       if (region.type === 'circle') {
-        return {
-          lat: region.center.lat,
-          lng: region.center.lng,
-          radius: region.radius
-        };
-      } else if (region.type === 'polygon') {
+        return { lat: region.center.lat, lng: region.center.lng, radius: region.radius };
+      } else if (region.type === 'polygon' && window.google && window.google.maps && window.google.maps.geometry) {
         const bounds = new window.google.maps.LatLngBounds();
-        region.path.forEach(point => bounds.extend(point));
+        region.path.forEach(point => bounds.extend(new window.google.maps.LatLng(point.lat, point.lng)));
         const center = bounds.getCenter();
         const ne = bounds.getNorthEast();
         const radius = window.google.maps.geometry.spherical.computeDistanceBetween(center, ne);
-        return {
-          lat: center.lat(),
-          lng: center.lng(),
-          radius: radius
-        };
+        return { lat: center.lat(), lng: center.lng(), radius: radius };
       }
+      console.warn("[Dashboard] Could not calculate center/radius for region:", region);
       return null;
     };
 
-    // Use a variable to track if the component is mounted
     let isMounted = true;
     
-    const fetchPopularPlaces = async () => {
+    const fetchAndProcessPopularPlaces = async () => {
       try {
         const regionInfo = getRegionCenterAndRadius(confirmedRegion);
-        if (!regionInfo) throw new Error("Invalid region info");
+        if (!regionInfo) {
+          console.error("[Dashboard] Invalid region info, cannot fetch popular places.");
+          if (isMounted) {
+            setPopularPlaces([]);
+            setLoadingPlaces(false);
+            setPlacesApiError(true);
+          }
+          return;
+        }
         
-        const places = await fetchPopularPlacesREST(regionInfo);
+        console.log("[Dashboard] Fetching popular places for regionInfo:", JSON.stringify(regionInfo));
+        let candidatePlaces = await fetchPopularPlacesREST(regionInfo);
+        console.log(`[Dashboard] Fetched ${candidatePlaces.length} candidate places initially.`);
+
+        // Refined Filtering Logic
+        const minRating = 3.5; // Minimum average rating
+        const minReviewCount = 25; // Default minimum review count (can be adjusted after research)
+
+        console.log(`[Dashboard] Applying filters: minRating=${minRating}, minReviewCount=${minReviewCount}`);
+
+        const qualityFilteredPlaces = candidatePlaces.filter(place => {
+          const rating = place.rating || 0;
+          const reviewCount = place.userRatingCount || place.user_ratings_total || 0;
+          const passesFilters = rating >= minRating && reviewCount >= minReviewCount;
+          // if (!passesFilters) {
+          //   console.log(`[Dashboard] Place filtered out: ${place.displayName?.text || place.name}, Rating: ${rating}, Reviews: ${reviewCount}`);
+          // }
+          return passesFilters;
+        });
+        console.log(`[Dashboard] ${qualityFilteredPlaces.length} places remaining after filtering by min rating & min reviews.`);
+
+        // Sort by userRatingCount (number of reviews) in descending order.
+        qualityFilteredPlaces.sort((a, b) => 
+          (b.userRatingCount || b.user_ratings_total || 0) - (a.userRatingCount || a.user_ratings_total || 0)
+        );
+        console.log("[Dashboard] Sorted quality-filtered places by review count.");
         
-        // Only update state if component is still mounted
+        // Select the top 15 from the filtered and sorted list.
+        const topPlaces = qualityFilteredPlaces.slice(0, 15);
+        console.log(`[Dashboard] Selected top ${topPlaces.length} places after all filtering and sorting.`);
+        
         if (isMounted) {
-          setPopularPlaces(places);
+          setPopularPlaces(topPlaces);
           setLoadingPlaces(false);
+          if (topPlaces.length === 0 && candidatePlaces.length > 0) {
+            console.warn("[Dashboard] No places selected after all filtering, though candidates were initially present. This might be due to strict filters.");
+          }
         }
       } catch (error) {
-        console.error("Error fetching popular places (REST):", error);
-        
-        // Only update state if component is still mounted
+        console.error("[Dashboard] Error fetching or processing popular places:", error);
         if (isMounted) {
+          setPopularPlaces([]);
           setPlacesApiError(true);
           setLoadingPlaces(false);
         }
       }
     };
 
-    fetchPopularPlaces();
+    fetchAndProcessPopularPlaces();
     
-    // Cleanup function to prevent state updates after unmount
     return () => {
       isMounted = false;
+      console.log("[Dashboard] useEffect for popular places cleanup. ConfirmedRegion:", JSON.stringify(confirmedRegion));
     };
   }, [confirmedRegion, mapScriptLoaded]);
 
@@ -935,9 +933,12 @@ const Dashboard = () => {
           />
         </ErrorBoundary>
         
-        {selectedRegion && (
-          <div className="explore-button-container">
-            <button className="explore-button" onClick={handleExplore}>
+        {selectedRegion && !showExplorePopup && (
+          <div className="map-action-buttons-container">
+            <button 
+              className="explore-button map-primary-action-button" 
+              onClick={handleExplore}
+            >
               Explore
             </button>
           </div>

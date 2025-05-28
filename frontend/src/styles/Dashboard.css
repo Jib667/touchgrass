@@ -1943,6 +1943,7 @@ textarea:focus-visible,
   transition: all 0.2s ease;
   outline: none;
   text-transform: none;
+  flex-shrink: 0;
 }
 
 /* Add a bit more horizontal padding to give text more room */
@@ -1967,4 +1968,75 @@ textarea:focus-visible,
   width: 24px;
   height: 24px;
   flex-shrink: 0;
+}
+
+/* Styles for map action buttons (Confirm, Clear, Explore) */
+.map-action-buttons-container {
+  position: absolute;
+  bottom: 20px; /* Fixed position at the bottom */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  gap: 10px; /* Space between buttons */
+  padding: 5px;
+  background-color: rgba(0,18,8,0.0); /* Transparent background for the container */
+  border-radius: 8px;
+}
+
+.map-clear-button-container {
+  position: absolute;
+  top: 20px; /* Position at the top */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  justify-content: center;
+}
+
+.map-primary-action-button,
+.map-secondary-action-button {
+  padding: 10px 20px;
+  font-size: 1rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 20px; /* More rounded corners */
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+.map-primary-action-button {
+  background-color: var(--mint-green);
+  color: var(--dark-green, #001208); /* Fallback for dark green */
+}
+
+.map-primary-action-button:hover {
+  background-color: #b3ffcb; /* Lighter mint */
+  transform: translateY(-1px);
+  box-shadow: 0 3px 7px rgba(0,0,0,0.25);
+}
+
+.map-secondary-action-button {
+  background-color: rgba(255, 87, 87, 0.8); /* Reddish for clear/cancel */
+  color: #ffffff;
+}
+
+.map-secondary-action-button:hover {
+  background-color: rgba(220, 70, 70, 0.9);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 7px rgba(0,0,0,0.25);
+}
+
+.map-tertiary-action-button {
+  background-color: rgba(200, 200, 200, 0.8); /* Whitish-gray */
+  color: #333333; /* Darker text for contrast */
+  padding: 8px 15px; /* Slightly smaller padding */
+  font-size: 0.9rem;
+  font-weight: 500;
+  border: none; /* Removed border */
+  border-radius: 20px; /* Match the rounded corners */
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 } 
