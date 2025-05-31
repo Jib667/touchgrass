@@ -170,20 +170,23 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
   const [mapType, setMapType] = useState('roadmap');
   const [currentDrawing, setCurrentDrawing] = useState(null);
   const [selectedRegion, setSelectedRegion] = useState(null);
-  const [circleRadius, setCircleRadius] = useState(0);
   const [resizeMarker, setResizeMarker] = useState(null);
   const [polygonPath, setPolygonPath] = useState([]);
   const [showConfirmButton, setShowConfirmButton] = useState(false);
   const [drawingModeInternal, setDrawingModeInternal] = useState(null);
   const [drawingManager, setDrawingManager] = useState(null);
   const [showInstructions, setShowInstructions] = useState(false);
-
+  
+  // Add a new state for forcing re-renders
+  const [renderKey, setRenderKey] = useState(Date.now());
+  
   const animationRef = useRef(null);
   const mapContainerRef = useRef(null);
   const instructionsTimeoutRef = useRef(null);
   const externalDrawingModeRef = useRef(externalDrawingMode);
   const currentDrawingRef = useRef(currentDrawing);
-
+  
+  // Add back the marker icons and options inside the component
   const userMarkerIcon = {
     path: "M12,2C8.14,2 5,5.14 5,9c0,5.25 7,13 7,13s7,-7.75 7,-13c0,-3.86 -3.14,-7 -7,-7zM12,13.5c-2.49,0 -4.5,-2.01 -4.5,-4.5S9.51,4.5 12,4.5s4.5,2.01 4.5,4.5 -2.01,4.5 -4.5,4.5z",
     fillColor: "#9dffb0",
@@ -193,7 +196,7 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
     scale: 1.5,
     anchor: { x: 12, y: 22 },
   };
-
+  
   const resizeHandleIcon = {
     path: "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z",
     fillColor: "#00e676",
@@ -204,16 +207,89 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
     scale: 1.2,
     anchor: { x: 12, y: 12 },
   };
-  
+
   const circleOptions = {
-    fillColor: '#0d2e13', fillOpacity: 0.45, strokeColor: '#00e676',
-    strokeOpacity: 1, strokeWeight: 3, clickable: false, editable: false, zIndex: 2,
+    fillColor: '#0d2e13', 
+    fillOpacity: 0.6,
+    strokeColor: '#00e676',
+    strokeOpacity: 1, 
+    strokeWeight: 3, 
+    clickable: false, 
+    editable: false, 
+    zIndex: 2,
   };
   
   const polygonOptions = {
-    fillColor: '#0d2e13', fillOpacity: 0.45, strokeColor: '#00e676',
-    strokeOpacity: 1, strokeWeight: 3, clickable: false, editable: false, zIndex: 2,
+    fillColor: '#0d2e13', 
+    fillOpacity: 0.45, 
+    strokeColor: '#00e676',
+    strokeOpacity: 1, 
+    strokeWeight: 3, 
+    clickable: false, 
+    editable: false, 
+    zIndex: 2,
   };
+
+  // Add a ref to track the last Google Maps Circle overlay
+  const lastCircleOverlayRef = useRef(null);
+
+  // Define the cleanup function here, before it's used
+  const cleanupAllCircles = useCallback(() => {
+    // Explicitly clear both currentDrawing and selectedRegion
+    setCurrentDrawing(null);
+    setSelectedRegion(null);
+    setResizeMarker(null);
+    setShowConfirmButton(false);
+    
+    // Force a re-render by adding a unique key
+    setRenderKey(Date.now());
+  }, []);
+
+  // Now define handleClearRegion which uses cleanupAllCircles
+  const handleClearRegion = useCallback(() => {
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
+    }
+    
+    // Remove the last overlay if it exists
+    if (lastCircleOverlayRef.current) {
+      lastCircleOverlayRef.current.setMap(null);
+      lastCircleOverlayRef.current = null;
+    }
+    
+    // Store current drawing mode before clearing
+    const currentMode = externalDrawingModeRef.current;
+    
+    // Reset drawing manager
+    if (drawingManager && window.google && window.google.maps) {
+      // Clear any active overlays
+      if (drawingManager.getOverlay && typeof drawingManager.getOverlay === 'function') {
+        const overlay = drawingManager.getOverlay();
+        if (overlay) overlay.setMap(null);
+      }
+    }
+    
+    // Use the cleanup function to clear all circles
+    cleanupAllCircles();
+    
+    // Also notify parent to clear any regions there
+    if (onRegionSelect) onRegionSelect(null);
+    
+    // Reset drawing mode after a short delay to ensure clean state
+    setTimeout(() => {
+      if (drawingManager && window.google && window.google.maps) {
+        // If we're in drawing mode, keep the same mode active
+        if (currentMode === 'polygon') {
+          drawingManager.setDrawingMode(window.google.maps.drawing.OverlayType.POLYGON);
+        } else if (currentMode === 'circle') {
+          drawingManager.setDrawingMode(window.google.maps.drawing.OverlayType.CIRCLE);
+        } else {
+          drawingManager.setDrawingMode(null);
+        }
+      }
+    }, 50);
+  }, [onRegionSelect, drawingManager, cleanupAllCircles]);
 
   useEffect(() => {
     if (loadError) {
@@ -244,120 +320,159 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
   }, []);
 
   useEffect(() => {
-    externalDrawingModeRef.current = externalDrawingMode;
-  }, [externalDrawingMode]);
-
-  useEffect(() => {
-    currentDrawingRef.current = currentDrawing;
-  }, [currentDrawing]);
-
-  const createOrUpdateCircleDrawing = useCallback((clickPosition, existingRadius = 0) => {
-    console.log(`[MapRenderer] createOrUpdateCircleDrawing: clickPosition=${JSON.stringify(clickPosition?.toJSON())}, existingRadius=${existingRadius}, map=${map ? 'exists' : 'null'}`);
-    if (!map) {
-        console.warn('[MapRenderer] createOrUpdateCircleDrawing: Map object is not available yet.');
-        return;
+    setDrawingModeInternal(externalDrawingMode);
+    
+    // Cancel any animations
+    if (animationRef.current) {
+      cancelAnimationFrame(animationRef.current);
+      animationRef.current = null;
     }
     
-    // Clear any existing drawings first
+    // Clear all existing drawings
     setCurrentDrawing(null);
-    setCircleRadius(0);
-    setPolygonPath([]);
+    setSelectedRegion(null);
     setResizeMarker(null);
+    setPolygonPath([]);
+    setShowConfirmButton(false);
     
-    // Continue with creating a new circle
-    const circleCenter = { lat: clickPosition.lat(), lng: clickPosition.lng() };
-    if (animationRef.current) cancelAnimationFrame(animationRef.current);
-    let startTime = null;
-    const animationDuration = existingRadius > 0 ? 0 : 500;
-    let initialTargetRadius = 300;
-    if (map && existingRadius === 0) {
-      const bounds = map.getBounds();
-      if (bounds) {
-        const ne = bounds.getNorthEast(); const sw = bounds.getSouthWest();
-        const diagonalMeters = window.google.maps.geometry.spherical.computeDistanceBetween(ne, sw);
-        initialTargetRadius = Math.max(100, Math.min(diagonalMeters * 0.15, 2000));
+    // Set drawing mode via drawing manager
+    if (drawingManager && window.google && window.google.maps) {
+      // First clear any existing overlays
+      if (drawingManager.getOverlay && typeof drawingManager.getOverlay === 'function') {
+        const overlay = drawingManager.getOverlay();
+        if (overlay) overlay.setMap(null);
       }
+      
+      if (externalDrawingMode === 'polygon') {
+        // Switch to polygon drawing mode
+        drawingManager.setDrawingMode(window.google.maps.drawing.OverlayType.POLYGON);
+      } 
+      else if (externalDrawingMode === 'circle') {
+        // Switch to circle drawing mode
+        drawingManager.setDrawingMode(window.google.maps.drawing.OverlayType.CIRCLE);
+      } 
+      else {
+        // Turn off drawing mode
+        drawingManager.setDrawingMode(null);
+      }
+      }
+      
+    // Show instructions if in drawing mode
+      if (externalDrawingMode) {
+        setShowInstructions(true);
+      if (instructionsTimeoutRef.current) clearTimeout(instructionsTimeoutRef.current);
+      instructionsTimeoutRef.current = setTimeout(() => setShowInstructions(false), 5000);
+    } else {
+      setShowInstructions(false);
     }
-    const targetRadius = existingRadius > 0 ? existingRadius : initialTargetRadius;
-    const drawingData = { type: 'circle', center: circleCenter, radius: existingRadius };
-    setCurrentDrawing(drawingData);
-    setCircleRadius(existingRadius);
-    const animateCircleGrowth = (timestamp) => {
-      if (!startTime) startTime = timestamp;
-      const elapsed = timestamp - startTime;
-      const progress = Math.min(elapsed / animationDuration, 1);
-      const easeOut = (t) => 1 - Math.pow(1 - t, 2);
-      const animatedRadius = easeOut(progress) * targetRadius;
-      setCircleRadius(animatedRadius);
-      setCurrentDrawing(prev => prev ? { ...prev, radius: animatedRadius } : null);
-      if (progress < 1) {
-        animationRef.current = requestAnimationFrame(animateCircleGrowth);
-      } else {
-        const finalRadius = targetRadius;
-        setCurrentDrawing({ type: 'circle', center: circleCenter, radius: finalRadius });
-        setCircleRadius(finalRadius);
-        const R = 6371e3;
-        const latRad = circleCenter.lat * Math.PI / 180;
-        const lngRad = circleCenter.lng * Math.PI / 180;
-        const dLng = finalRadius / (R * Math.cos(latRad));
-        const resizeHandleLng = lngRad + dLng;
-        setResizeMarker({ lat: circleCenter.lat, lng: resizeHandleLng * 180 / Math.PI });
-        setShowConfirmButton(true);
+    
+    // Store current mode in ref for other functions to access
+    externalDrawingModeRef.current = externalDrawingMode;
+    
+    return () => {
+        if (instructionsTimeoutRef.current) {
+          clearTimeout(instructionsTimeoutRef.current);
       }
     };
-    if (animationDuration > 0) {
-      animationRef.current = requestAnimationFrame(animateCircleGrowth);
-    } else {
-      setCurrentDrawing({ type: 'circle', center: circleCenter, radius: targetRadius });
-      setCircleRadius(targetRadius);
-      const R = 6371e3;
-      const latRad = circleCenter.lat * Math.PI / 180;
-      const lngRad = circleCenter.lng * Math.PI / 180;
-      const dLng = targetRadius / (R * Math.cos(latRad));
-      const resizeHandleLng = lngRad + dLng;
-      setResizeMarker({ lat: circleCenter.lat, lng: resizeHandleLng * 180 / Math.PI });
-      setShowConfirmButton(true);
-    }
-  }, [map]);
-
-  const handleMapClick = useCallback((e) => {
-    const currentExtMode = externalDrawingModeRef.current;
-    const currentDrawingState = currentDrawingRef.current;
-    console.log(`[MapRenderer] handleMapClick: externalMode='${currentExtMode}', currentDrawing='${JSON.stringify(currentDrawingState)}'`);
-
-    if (currentExtMode === 'circle' && currentDrawingState === null) {
-        console.log('[MapRenderer] handleMapClick: Proceeding with createOrUpdateCircleDrawing.');
-        createOrUpdateCircleDrawing(e.latLng);
-    }
-  }, [createOrUpdateCircleDrawing]);
-
-  const onPolygonCompleteInternal = useCallback((polygon) => {
-    if (drawingManager) drawingManager.setDrawingMode(null);
-    const path = polygon.getPath().getArray().map(p => ({ lat: p.lat(), lng: p.lng() }));
-    setCurrentDrawing({ type: 'polygon', path });
-    setPolygonPath(path);
-    setShowConfirmButton(true);
-    polygon.setMap(null);
-  }, [drawingManager]);
+  }, [externalDrawingMode, drawingManager]);
 
   const onMapLoad = useCallback(mapInstance => {
-    console.log('[MapRenderer] onMapLoad called, mapInstance:', mapInstance ? 'exists' : 'null');
+    console.log('[MapRenderer] onMapLoad called');
     setMap(mapInstance);
     setIsMapInstanceLoaded(true);
     mapInstance.setMapTypeId('roadmap');
     
     if (window.google && window.google.maps && window.google.maps.drawing) {
+      // Create drawing manager with proper options
       const dm = new window.google.maps.drawing.DrawingManager({
-        drawingMode: null, drawingControl: false,
-        polygonOptions: { clickable:false, editable: false, fillColor: '#0d2e13', fillOpacity: 0.45, strokeColor: '#00e676', strokeOpacity: 1, strokeWeight: 3, zIndex: 1 }, 
-        circleOptions: { clickable:false, editable: false, fillColor: '#0d2e13', fillOpacity: 0.45, strokeColor: '#00e676', strokeOpacity: 1, strokeWeight: 3, zIndex: 1 }
+        drawingMode: null,
+        drawingControl: false, // We'll control this through our UI
+        circleOptions: {
+          fillColor: '#0d2e13',
+          fillOpacity: 0.6,
+          strokeColor: '#00e676',
+          strokeOpacity: 1,
+          strokeWeight: 3,
+          clickable: false,
+          editable: false,
+          zIndex: 10
+        },
+        polygonOptions: { 
+          clickable: false, 
+          editable: false, 
+          fillColor: '#0d2e13', 
+          fillOpacity: 0.45, 
+          strokeColor: '#00e676', 
+          strokeOpacity: 1, 
+          strokeWeight: 3, 
+          zIndex: 1
+        }
       });
+      
+      // Set the drawing manager on the map
       dm.setMap(mapInstance);
       setDrawingManager(dm);
+      
+      // Add event listeners for shape completion
       window.google.maps.event.clearInstanceListeners(dm);
-      window.google.maps.event.addListener(dm, 'polygoncomplete', onPolygonCompleteInternal);
+      
+      // Handle polygon completion
+      window.google.maps.event.addListener(dm, 'polygoncomplete', polygon => {
+        dm.setDrawingMode(null);
+
+        const path = polygon.getPath().getArray().map(p => ({ lat: p.lat(), lng: p.lng() }));
+        const region = { type: 'polygon', path };
+        setSelectedRegion(region);
+        if (onRegionSelect) onRegionSelect(region);
+
+        polygon.setMap(null);
+
+        // Ensure confirm button is hidden
+        setShowConfirmButton(false);
+        setCurrentDrawing(null);
+      });
+      
+      // Handle circle completion
+      window.google.maps.event.addListener(dm, 'circlecomplete', circle => {
+        // Remove previous overlay if it exists
+        if (lastCircleOverlayRef.current) {
+          lastCircleOverlayRef.current.setMap(null);
+          lastCircleOverlayRef.current = null;
+        }
+        // Store the new overlay
+        lastCircleOverlayRef.current = circle;
+
+        // Immediately set drawing mode to null to prevent multiple shapes
+        dm.setDrawingMode(null);
+
+        // Get center and radius from circle
+        const center = { 
+          lat: circle.getCenter().lat(), 
+          lng: circle.getCenter().lng() 
+        };
+        const radius = circle.getRadius();
+
+        // Create the circle data
+        const circleData = { type: 'circle', center, radius };
+
+        // Notify parent
+        if (onRegionSelect) onRegionSelect(circleData);
+
+        // Do NOT setSelectedRegion or setCurrentDrawing for circles (let Google Maps handle display)
+        setResizeMarker(null);
+        setShowConfirmButton(false);
+        setCurrentDrawing(null);
+        setSelectedRegion(null);
+
+        // Optionally, re-enable drawing mode if you want to allow drawing another circle immediately
+        if (drawingManager && externalDrawingModeRef.current === 'circle') {
+          setTimeout(() => {
+            drawingManager.setDrawingMode(window.google.maps.drawing.OverlayType.CIRCLE);
+          }, 50);
+        }
+      });
     }
-  }, [onPolygonCompleteInternal]);
+  }, []);
 
   const onUnmount = useCallback(() => {
     if (drawingManager) window.google.maps.event.clearInstanceListeners(drawingManager);
@@ -366,45 +481,50 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
     if (instructionsTimeoutRef.current) clearTimeout(instructionsTimeoutRef.current);
   }, [drawingManager]);
 
-  useEffect(() => {
-    setDrawingModeInternal(externalDrawingModeRef.current);
-    if (drawingManager) {
-      if (externalDrawingModeRef.current === 'polygon') {
-        drawingManager.setDrawingMode(window.google.maps.drawing.OverlayType.POLYGON);
-      } else {
-        drawingManager.setDrawingMode(null);
-      }
-    }
-    if (externalDrawingModeRef.current !== externalDrawingMode) { // Prop changed
-        setCurrentDrawing(null); 
-        setCircleRadius(0); 
-        setPolygonPath([]);
-        setResizeMarker(null); 
-        setShowConfirmButton(false);
-        setSelectedRegion(null); // Ensure any previously selected region is cleared
-    }
-    if (externalDrawingModeRef.current) {
-      setShowInstructions(true);
-      if (instructionsTimeoutRef.current) clearTimeout(instructionsTimeoutRef.current);
-      instructionsTimeoutRef.current = setTimeout(() => setShowInstructions(false), 5000);
-    } else {
-      setShowInstructions(false);
-    }
-  }, [externalDrawingMode, drawingManager]); // externalDrawingMode is the prop
-
   const handleResizeMarkerDrag = useCallback((e) => {
     const currentDrawingVal = currentDrawingRef.current;
-    if (!currentDrawingVal || currentDrawingVal.type !== 'circle') return;
+    if (!currentDrawingVal || currentDrawingVal.type !== 'circle' || !currentDrawingVal.center) return;
+    
+    const center = currentDrawingVal.center;
     const newMarkerPosition = { lat: e.latLng.lat(), lng: e.latLng.lng() };
-    const newRadius = Math.abs(newMarkerPosition.lng - currentDrawingVal.center.lng) *
-                      (6371e3 * Math.cos(currentDrawingVal.center.lat * Math.PI / 180) * (Math.PI / 180));
+    
+    // Calculate direct distance between center and marker
+    const p1 = new google.maps.LatLng(center.lat, center.lng);
+    const p2 = new google.maps.LatLng(newMarkerPosition.lat, newMarkerPosition.lng);
+    const newRadius = google.maps.geometry.spherical.computeDistanceBetween(p1, p2);
+    
+    // Minimum radius
     const minRadius = 50;
     const radiusToSet = Math.max(newRadius, minRadius);
-    setCircleRadius(radiusToSet);
-    setCurrentDrawing(prev => prev ? { ...prev, radius: radiusToSet } : null);
+    
+    // Update circle with new radius
+    setCurrentDrawing({
+        type: 'circle',
+        center: center,
+      radius: radiusToSet
+    });
+    
+    // Keep the marker on the edge
     setResizeMarker(newMarkerPosition);
     setShowConfirmButton(true);
   }, []);
+
+  const handleResizeMarkerDragEnd = useCallback((e) => {
+    const currentDrawingVal = currentDrawingRef.current;
+    if (!currentDrawingVal || currentDrawingVal.type !== 'circle') return;
+    
+    // Immediately confirm the circle with the current radius
+    setSelectedRegion(currentDrawingVal);
+    if (onRegionSelect) onRegionSelect(currentDrawingVal);
+    
+    // Clear current drawing state
+    setCurrentDrawing(null);
+    setResizeMarker(null);
+    setShowConfirmButton(false);
+    
+    // Exit drawing mode
+    setDrawingModeInternal(null);
+  }, [onRegionSelect]);
 
   const handleConfirmRegionClick = useCallback(() => {
     const currentDrawingVal = currentDrawingRef.current;
@@ -413,22 +533,9 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
       if (onRegionSelect) onRegionSelect(currentDrawingVal);
       setShowConfirmButton(false);
       setCurrentDrawing(null);
-      setDrawingModeInternal(null); // Reset drawing mode after confirming
+      setDrawingModeInternal(null);
     }
   }, [onRegionSelect]);
-
-  const handleClearRegion = useCallback(() => {
-    console.log('[MapRenderer] handleClearRegion called.');
-    setCurrentDrawing(null); 
-    setSelectedRegion(null); 
-    setCircleRadius(0); 
-    setPolygonPath([]);
-    setResizeMarker(null); 
-    setShowConfirmButton(false); 
-    setDrawingModeInternal(null);
-    if (drawingManager && drawingManager.getDrawingMode()) drawingManager.setDrawingMode(null);
-    if (onRegionSelect) onRegionSelect(null);
-  }, [onRegionSelect, drawingManager]);
 
   useEffect(() => {
     const handleKeyDown = (e) => {
@@ -451,37 +558,85 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
     clearRegion: handleClearRegion
   }), [map, handleClearRegion]);
 
+  useEffect(() => {
+    currentDrawingRef.current = currentDrawing;
+  }, [currentDrawing]);
+
+  // Helper function to calculate resize handle position
+  const calculateResizeHandlePosition = useCallback((center, radius) => {
+    const R = 6371e3; // Earth radius in meters
+    const latRad = center.lat * Math.PI / 180;
+    const lngRad = center.lng * Math.PI / 180;
+    const dLng = radius / (R * Math.cos(latRad));
+    const resizeHandleLng = lngRad + dLng;
+    
+    return { 
+      lat: center.lat,
+      lng: resizeHandleLng * 180 / Math.PI 
+    };
+  }, []);
+
+  // Add a helper to determine if a circle overlay exists
+  const hasCircleOverlay = !!lastCircleOverlayRef.current;
+  const hasPolygon = (currentDrawing && currentDrawing.type === 'polygon') || (selectedRegion && selectedRegion.type === 'polygon');
+  const shouldShowClearButton = hasCircleOverlay || hasPolygon;
+
   if (!isLoaded) return <div className="loading">Loading map script...</div>; // Handled by parent for API key, this is for script itself
   if (loadError) return <div className="dashboard-error">Error loading Google Maps script: {loadError.message}</div>;
 
   const displayRegion = currentDrawing || selectedRegion;
-  const displayCircleRadius = currentDrawing?.type === 'circle' ? currentDrawing.radius : (selectedRegion?.type === 'circle' && !currentDrawing ? selectedRegion.radius : 0);
   const displayPolygonPath = currentDrawing?.type === 'polygon' ? currentDrawing.path : (selectedRegion?.type === 'polygon' && !currentDrawing ? selectedRegion.path : []);
 
   return (
     <div className="dashboard-map-container" ref={mapContainerRef}>
       <GoogleMap
-        mapContainerClassName={`google-map ${drawingModeInternal === 'circle' ? 'drawing-cursor' : ''}`}
+        mapContainerClassName={`google-map ${drawingModeInternal ? 'drawing-cursor' : ''}`}
         center={center}
         zoom={13}
         options={{ ...defaultOptions, mapTypeId: mapType, gestureHandling: 'greedy' }}
         onLoad={onMapLoad}
         onUnmount={onUnmount}
-        onClick={handleMapClick}
       >
         {userLocation && <Marker position={userLocation} icon={userMarkerIcon} title="Your location" />}
-        {displayRegion?.type === 'circle' && displayCircleRadius > 0 && (
-          <Circle center={displayRegion.center} radius={displayCircleRadius} options={circleOptions} />
-        )}
-        {displayRegion?.type === 'polygon' && displayPolygonPath.length > 0 && (
-          <Polygon paths={displayPolygonPath} options={polygonOptions} />
-        )}
-        {currentDrawing?.type === 'circle' && drawingModeInternal === 'circle' && resizeMarker && (
-          <Marker position={resizeMarker} icon={resizeHandleIcon} draggable={true} onDrag={handleResizeMarkerDrag} title="Drag to resize" />
+        
+        {/* Circle - ONLY rendered if we have a currentDrawing or selectedRegion of type circle */}
+        {currentDrawing?.type === 'circle' ? (
+          <Circle 
+            key={`current-circle-${renderKey}`}
+            center={currentDrawing.center} 
+            radius={currentDrawing.radius} 
+            options={circleOptions}
+          />
+        ) : null}
+        
+        {/* Polygon */}
+        {currentDrawing?.type === 'polygon' ? (
+          <Polygon 
+            key="current-polygon"
+            paths={polygonPath} 
+            options={polygonOptions} 
+          />
+        ) : selectedRegion?.type === 'polygon' ? (
+          <Polygon
+            key={`selected-polygon-${renderKey}`}
+            paths={selectedRegion.path}
+            options={polygonOptions}
+          />
+        ) : null}
+        
+        {/* Resize marker - only shown for active circle drawings */}
+        {currentDrawing?.type === 'circle' && resizeMarker && (
+          <Marker
+            position={resizeMarker}
+            icon={resizeHandleIcon}
+            draggable={true}
+            onDrag={handleResizeMarkerDrag}
+            onDragEnd={handleResizeMarkerDragEnd}
+            title="Drag to resize"
+          />
         )}
       </GoogleMap>
       
-      {/* Map Instance Loaded UI (Controls, Buttons, Instructions) */}
       {isMapInstanceLoaded && (
         <>
           <div className="map-controls">
@@ -496,11 +651,10 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
             </button>
             <button className={getButtonClass()} onClick={() => map?.setZoom((map?.getZoom() || 10) - 1)} title="Zoom out">
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M19 13H5v-2h14v2z"/></svg>
-            </button>
-          </div>
+          </button>
+        </div>
 
-          {/* Clear button at the top center */}
-          {(currentDrawing || selectedRegion) && (
+          {shouldShowClearButton && (
             <div className="map-clear-button-container">
               <button 
                 onClick={handleClearRegion} 
@@ -511,16 +665,7 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
               </button>
             </div>
           )}
-
-          {/* Container for action buttons at the bottom center - Confirm Region button */}
-          {showConfirmButton && currentDrawing && (
-            <div className="map-action-buttons-container">
-              <button onClick={handleConfirmRegionClick} className="confirm-region-btn map-primary-action-button">
-                Confirm Region
-              </button>
-            </div>
-          )}
-
+          
           {showInstructions && drawingModeInternal === 'polygon' && (
             <div className="drawing-instructions"><p>Click to add points. Click first point to close. ESC to cancel.</p></div>
           )}
