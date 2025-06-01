@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { auth, signOutUser, deleteUserAccount } from '../firebase';
 import { useNavigate } from 'react-router-dom';
-import { getFirestore, doc, getDoc } from 'firebase/firestore';
+import { getFirestore, doc, getDoc, updateDoc, arrayUnion, arrayRemove, serverTimestamp } from 'firebase/firestore';
 import MapComponent from './GoogleMap';
 import ExplorePopup from './ExplorePopup';
 import ErrorBoundary from './ErrorBoundary';
+import SavedTrips from './SavedTrips';
 import '../styles/Dashboard.css';
 
 const Dashboard = () => {
@@ -13,7 +14,8 @@ const Dashboard = () => {
   const [loadingError, setLoadingError] = useState(null);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [showSideNav, setShowSideNav] = useState(false);
-  const [currentView, setCurrentView] = useState('main'); // 'main' or 'profile'
+  const [sideNavClosing, setSideNavClosing] = useState(false);
+  const [currentView, setCurrentView] = useState('main'); // 'main', 'profile', or 'saved-trips'
   const [userPreferences, setUserPreferences] = useState(null);
   const [preferencesLoading, setPreferencesLoading] = useState(false);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
@@ -28,6 +30,22 @@ const Dashboard = () => {
   const [popularPlaces, setPopularPlaces] = useState([]);
   const [loadingPlaces, setLoadingPlaces] = useState(false);
   const [placesApiError, setPlacesApiError] = useState(false);
+  
+  // Friend-related state
+  const [friends, setFriends] = useState([]);
+  const [friendRequests, setFriendRequests] = useState([]);
+  const [friendsLoading, setFriendsLoading] = useState(false);
+  const [showAddFriendModal, setShowAddFriendModal] = useState(false);
+  const [friendEmail, setFriendEmail] = useState('');
+  const [friendRequestSending, setFriendRequestSending] = useState(false);
+  const [friendRequestError, setFriendRequestError] = useState(null);
+  const [friendRequestSuccess, setFriendRequestSuccess] = useState(false);
+  const [confirmationCode, setConfirmationCode] = useState('');
+  const [verifyingCode, setVerifyingCode] = useState(false);
+  const [codeVerificationError, setCodeVerificationError] = useState(null);
+  const [showVerifyCodeModal, setShowVerifyCodeModal] = useState(false);
+  const [pendingRequestData, setPendingRequestData] = useState(null);
+  
   const navigate = useNavigate();
   const db = getFirestore();
   const mainContentRef = useRef(null);
@@ -81,6 +99,7 @@ const Dashboard = () => {
     // Fetch user preferences when currentView is 'profile'
     if (currentView === 'profile') {
       fetchUserPreferences(currentUser.uid);
+      fetchFriends(currentUser.uid);
     }
     
   }, [navigate, currentView]);
@@ -110,12 +129,319 @@ const Dashboard = () => {
     }
   };
 
+  // Fetch friends and friend requests
+  const fetchFriends = async (userId) => {
+    if (!userId) return;
+    
+    setFriendsLoading(true);
+    try {
+      const userDocRef = doc(db, "users", userId);
+      const docSnap = await getDoc(userDocRef);
+      
+      if (docSnap.exists()) {
+        const userData = docSnap.data();
+        
+        // Get friends list with user details
+        const friendsList = userData.friends || [];
+        const friendsWithDetails = [];
+        
+        for (const friendId of friendsList) {
+          try {
+            const friendDocRef = doc(db, "users", friendId);
+            const friendDocSnap = await getDoc(friendDocRef);
+            
+            if (friendDocSnap.exists()) {
+              const friendData = friendDocSnap.data();
+              friendsWithDetails.push({
+                id: friendId,
+                displayName: friendData.displayName,
+                email: friendData.email,
+                photoURL: friendData.photoURL
+              });
+            }
+          } catch (error) {
+            console.error(`Error fetching friend ${friendId} details:`, error);
+          }
+        }
+        
+        // Get friend requests
+        const requests = userData.friendRequests || [];
+        
+        setFriends(friendsWithDetails);
+        setFriendRequests(requests);
+      } else {
+        setFriends([]);
+        setFriendRequests([]);
+      }
+    } catch (error) {
+      console.error("Error fetching friends:", error);
+      setFriends([]);
+      setFriendRequests([]);
+    } finally {
+      setFriendsLoading(false);
+    }
+  };
+
+  // Generate a random 6-digit confirmation code
+  const generateConfirmationCode = () => {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
+  // Send a friend request
+  const sendFriendRequest = async (email) => {
+    if (!user || !email) return;
+    
+    setFriendRequestSending(true);
+    setFriendRequestError(null);
+    setFriendRequestSuccess(false);
+    
+    try {
+      // Check if email exists in system
+      const { collection, query, where, getDocs } = await import('firebase/firestore');
+      const usersCollection = collection(db, "users");
+      const userQuery = query(usersCollection, where("email", "==", email));
+      const usersSnapshot = await getDocs(userQuery);
+      
+      if (usersSnapshot.empty) {
+        setFriendRequestError("No user found with this email address.");
+        setFriendRequestSending(false);
+        return;
+      }
+      
+      // Get the recipient user ID
+      const recipientDoc = usersSnapshot.docs[0];
+      const recipientData = recipientDoc.data();
+      const recipientId = recipientDoc.id;
+      
+      // Don't allow sending request to self
+      if (recipientId === user.uid) {
+        setFriendRequestError("You cannot send a friend request to yourself.");
+        setFriendRequestSending(false);
+        return;
+      }
+      
+      // Check if they're already friends
+      const userDocRef = doc(db, "users", user.uid);
+      const userDocSnap = await getDoc(userDocRef);
+      
+      if (userDocSnap.exists()) {
+        const userData = userDocSnap.data();
+        if (userData.friends && userData.friends.includes(recipientId)) {
+          setFriendRequestError("You are already friends with this user.");
+          setFriendRequestSending(false);
+          return;
+        }
+      }
+      
+      // Generate confirmation code
+      const code = generateConfirmationCode();
+      
+      // Store the request in the recipient's friendRequests collection
+      const recipientDocRef = doc(db, "users", recipientId);
+      
+      await updateDoc(recipientDocRef, {
+        friendRequests: arrayUnion({
+          from: user.uid,
+          senderName: user.displayName || user.email,
+          senderEmail: user.email,
+          status: "pending",
+          code: code,
+          timestamp: serverTimestamp()
+        })
+      });
+      
+      // Store the pending request data for confirmation
+      setPendingRequestData({
+        recipientId,
+        recipientEmail: email,
+        code
+      });
+      
+      // Show success message
+      setFriendRequestSuccess(true);
+      setShowAddFriendModal(false);
+      setShowVerifyCodeModal(true);
+      
+      // Send email with confirmation code (normally this would be done on the server)
+      // For this demo, we'll simulate it and display the code to the user
+      console.log(`Confirmation code for ${email}: ${code}`);
+      
+    } catch (error) {
+      console.error("Error sending friend request:", error);
+      setFriendRequestError("Failed to send friend request. Please try again.");
+    } finally {
+      setFriendRequestSending(false);
+    }
+  };
+
+  // Verify confirmation code
+  const verifyConfirmationCode = async (code) => {
+    if (!user || !pendingRequestData || !code) return;
+    
+    setVerifyingCode(true);
+    setCodeVerificationError(null);
+    
+    try {
+      // Check if code matches
+      if (code !== pendingRequestData.code) {
+        setCodeVerificationError("Invalid confirmation code. Please try again.");
+        setVerifyingCode(false);
+        return;
+      }
+      
+      // Code is valid, update friend request status
+      const recipientDocRef = doc(db, "users", pendingRequestData.recipientId);
+      const recipientDoc = await getDoc(recipientDocRef);
+      
+      if (recipientDoc.exists()) {
+        const recipientData = recipientDoc.data();
+        const requests = recipientData.friendRequests || [];
+        
+        // Find the request and update its status
+        const updatedRequests = requests.map(req => {
+          if (req.from === user.uid && req.code === code) {
+            return { ...req, status: "verified" };
+          }
+          return req;
+        });
+        
+        // Update the recipient's friend requests
+        await updateDoc(recipientDocRef, {
+          friendRequests: updatedRequests
+        });
+        
+        // Add each other as friends
+        await updateDoc(recipientDocRef, {
+          friends: arrayUnion(user.uid)
+        });
+        
+        const userDocRef = doc(db, "users", user.uid);
+        await updateDoc(userDocRef, {
+          friends: arrayUnion(pendingRequestData.recipientId)
+        });
+        
+        // Refresh friends list
+        await fetchFriends(user.uid);
+        
+        // Show success message and close the modal
+        setShowVerifyCodeModal(false);
+        setConfirmationCode('');
+        setPendingRequestData(null);
+        
+        // Show success modal or message
+        setFriendRequestSuccess(true);
+      }
+    } catch (error) {
+      console.error("Error verifying confirmation code:", error);
+      setCodeVerificationError("Failed to verify code. Please try again.");
+    } finally {
+      setVerifyingCode(false);
+    }
+  };
+
+  // Accept a friend request
+  const acceptFriendRequest = async (requestIndex) => {
+    if (!user) return;
+    
+    try {
+      const request = friendRequests[requestIndex];
+      if (!request) return;
+      
+      // Add the sender to the user's friends list
+      const userDocRef = doc(db, "users", user.uid);
+      await updateDoc(userDocRef, {
+        friends: arrayUnion(request.from),
+        friendRequests: arrayRemove(request)
+      });
+      
+      // Add the user to the sender's friends list
+      const senderDocRef = doc(db, "users", request.from);
+      await updateDoc(senderDocRef, {
+        friends: arrayUnion(user.uid)
+      });
+      
+      // Refresh friends list
+      await fetchFriends(user.uid);
+    } catch (error) {
+      console.error("Error accepting friend request:", error);
+    }
+  };
+
+  // Decline a friend request
+  const declineFriendRequest = async (requestIndex) => {
+    if (!user) return;
+    
+    try {
+      const request = friendRequests[requestIndex];
+      if (!request) return;
+      
+      // Remove the request from the user's friend requests
+      const userDocRef = doc(db, "users", user.uid);
+      await updateDoc(userDocRef, {
+        friendRequests: arrayRemove(request)
+      });
+      
+      // Refresh friends list
+      await fetchFriends(user.uid);
+    } catch (error) {
+      console.error("Error declining friend request:", error);
+    }
+  };
+
+  // Remove a friend
+  const removeFriend = async (friendId) => {
+    if (!user || !friendId) return;
+    
+    try {
+      // Remove from user's friends list
+      const userDocRef = doc(db, "users", user.uid);
+      await updateDoc(userDocRef, {
+        friends: arrayRemove(friendId)
+      });
+      
+      // Remove from friend's friends list
+      const friendDocRef = doc(db, "users", friendId);
+      await updateDoc(friendDocRef, {
+        friends: arrayRemove(user.uid)
+      });
+      
+      // Refresh friends list
+      await fetchFriends(user.uid);
+    } catch (error) {
+      console.error("Error removing friend:", error);
+    }
+  };
+
   const toggleProfileDropdown = () => {
     setShowProfileDropdown(!showProfileDropdown);
   };
   
   const toggleSideNav = () => {
-    setShowSideNav(!showSideNav);
+    if (showSideNav) {
+      // Start closing animation
+      setSideNavClosing(true);
+      
+      // After animation completes, actually hide the sidebar
+      setTimeout(() => {
+        setShowSideNav(false);
+        setSideNavClosing(false);
+      }, 300); // Match animation duration (0.3s)
+    } else {
+      setShowSideNav(true);
+    }
+  };
+  
+  const closeSideNav = () => {
+    if (showSideNav) {
+      // Start closing animation
+      setSideNavClosing(true);
+      
+      // After animation completes, actually hide the sidebar
+      setTimeout(() => {
+        setShowSideNav(false);
+        setSideNavClosing(false);
+      }, 300); // Match animation duration (0.3s)
+    }
   };
   
   const handleSignOut = async () => {
@@ -180,12 +506,7 @@ const Dashboard = () => {
   const handleViewProfile = () => {
     setCurrentView('profile');
     setShowProfileDropdown(false);
-    setShowSideNav(false);
-    
-    // Fetch user preferences when switching to profile view
-    if (user) {
-      fetchUserPreferences(user.uid);
-    }
+    closeSideNav();
     
     // Reset scroll position when switching to profile view
     setTimeout(() => {
@@ -197,7 +518,20 @@ const Dashboard = () => {
   
   const handleViewDashboard = () => {
     setCurrentView('main');
-    setShowSideNav(false);
+    closeSideNav();
+  };
+
+  const handleViewSavedTrips = () => {
+    setCurrentView('saved-trips');
+    setShowProfileDropdown(false);
+    closeSideNav();
+    
+    // Reset scroll position when switching view
+    setTimeout(() => {
+      if (mainContentRef.current) {
+        mainContentRef.current.scrollTop = 0;
+      }
+    }, 50);
   };
 
   // Update the useEffect to handle clicks outside the search bar
@@ -208,7 +542,7 @@ const Dashboard = () => {
       }
       
       if (showSideNav && !event.target.closest('.navbar-menu') && !event.target.closest('.hamburger-menu')) {
-        setShowSideNav(false);
+        closeSideNav();
       }
 
       // Hide search suggestions and recent searches when clicking outside
@@ -851,12 +1185,14 @@ const Dashboard = () => {
           <span></span>
           <span></span>
         </div>
-        <div className="dashboard-logo">Touch<span className="capital">G</span>rass</div>
+        <div className="dashboard-logo" onClick={handleViewDashboard} style={{ cursor: 'pointer' }}>
+          Touch<span className="capital">G</span>rass
+        </div>
       </div>
       
       {/* Sidebar navigation */}
       {showSideNav && (
-        <div className="navbar-menu">
+        <div className={`navbar-menu ${sideNavClosing ? 'closing' : ''}`}>
           <ul>
             <li 
               className={currentView === 'main' ? 'active' : ''} 
@@ -866,6 +1202,15 @@ const Dashboard = () => {
                 <path fill="currentColor" d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
               </svg>
               Dashboard
+            </li>
+            <li 
+              className={currentView === 'saved-trips' ? 'active' : ''} 
+              onClick={handleViewSavedTrips}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18">
+                <path fill="currentColor" d="M17 3H7c-1.1 0-2 .9-2 2v16l7-3 7 3V5c0-1.1-.9-2-2-2z"/>
+              </svg>
+              Saved Trips
             </li>
             <li 
               className={currentView === 'profile' ? 'active' : ''} 
@@ -912,8 +1257,9 @@ const Dashboard = () => {
           <div className="profile-dropdown">
             <ul>
               <li onClick={handleViewProfile}>Profile</li>
-              <li onClick={openConfirmModal}>Remove account</li>
+              <li onClick={handleViewSavedTrips}>Saved Trips</li>
               <li onClick={handleSignOut}>Sign out</li>
+              <li onClick={openConfirmModal}>Delete account</li>
             </ul>
           </div>
         )}
@@ -1029,11 +1375,103 @@ const Dashboard = () => {
         
         <div className="profile-section">
           <h2>Friends</h2>
-          <div className="friends-list">
-            <div className="empty-friends">
-              <p>Connect with friends to plan trips together.</p>
-              <button className="add-friend-button" disabled>Add Friends (Coming Soon)</button>
-            </div>
+          <div className="friends-section">
+            {friendsLoading ? (
+              <div className="friends-loading">
+                <p>Loading your connections...</p>
+              </div>
+            ) : (
+              <>
+                {/* Friend requests section */}
+                {friendRequests.length > 0 && (
+                  <div className="friend-requests-container">
+                    <h3>Friend Requests ({friendRequests.length})</h3>
+                    <ul className="friend-requests-list">
+                      {friendRequests.map((request, index) => (
+                        <li key={`request-${index}`} className="friend-request-item">
+                          <div className="friend-request-info">
+                            <div className="friend-avatar">
+                              {request.senderName?.charAt(0) || request.senderEmail?.charAt(0) || '?'}
+                            </div>
+                            <div className="friend-request-details">
+                              <div className="friend-name">{request.senderName || request.senderEmail}</div>
+                              <div className="friend-email">{request.senderEmail}</div>
+                            </div>
+                          </div>
+                          <div className="friend-request-actions">
+                            <button 
+                              className="accept-request-btn"
+                              onClick={() => acceptFriendRequest(index)}
+                            >
+                              Accept
+                            </button>
+                            <button 
+                              className="decline-request-btn"
+                              onClick={() => declineFriendRequest(index)}
+                            >
+                              Decline
+                            </button>
+                          </div>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                
+                {/* Friends list section */}
+                <div className="friends-list-container">
+                  <div className="friends-header">
+                    <h3>Your Friends ({friends.length})</h3>
+                    <button 
+                      className="add-friend-button"
+                      onClick={() => setShowAddFriendModal(true)}
+                    >
+                      Add Friend
+                    </button>
+                  </div>
+                  
+                  {friends.length > 0 ? (
+                    <ul className="friends-list">
+                      {friends.map((friend) => (
+                        <li key={friend.id} className="friend-item">
+                          <div className="friend-info">
+                            {friend.photoURL ? (
+                              <img 
+                                src={friend.photoURL} 
+                                alt={friend.displayName || friend.email} 
+                                className="friend-photo" 
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="friend-avatar">
+                                {friend.displayName?.charAt(0) || friend.email?.charAt(0) || '?'}
+                              </div>
+                            )}
+                            <div className="friend-details">
+                              <div className="friend-name">{friend.displayName || 'No name'}</div>
+                              <div className="friend-email">{friend.email}</div>
+                            </div>
+                          </div>
+                          <button 
+                            className="remove-friend-btn"
+                            onClick={() => removeFriend(friend.id)}
+                            aria-label="Remove friend"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20">
+                              <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+                            </svg>
+                          </button>
+                        </li>
+                      ))}
+                    </ul>
+                  ) : (
+                    <div className="empty-friends-message">
+                      <p>You don't have any friends yet. Send a friend request to get started!</p>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         </div>
         
@@ -1047,6 +1485,136 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
+
+      {/* Add Friend Modal */}
+      {showAddFriendModal && (
+        <div className="modal-overlay" onClick={() => setShowAddFriendModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Add a Friend</h3>
+              <button 
+                className="modal-close-btn"
+                onClick={() => setShowAddFriendModal(false)}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+                  <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+                </svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>Enter your friend's email address to send them a friend request:</p>
+              
+              <div className="friend-input-container">
+                <input
+                  type="email"
+                  placeholder="friend@example.com"
+                  value={friendEmail}
+                  onChange={(e) => setFriendEmail(e.target.value)}
+                  disabled={friendRequestSending}
+                />
+              </div>
+              
+              {friendRequestError && (
+                <div className="friend-request-error">
+                  {friendRequestError}
+                </div>
+              )}
+              
+              {friendRequestSuccess && !showVerifyCodeModal && (
+                <div className="friend-request-success">
+                  Friend request sent successfully!
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                className="cancel-btn"
+                onClick={() => setShowAddFriendModal(false)}
+                disabled={friendRequestSending}
+              >
+                Cancel
+              </button>
+              <button
+                className="send-request-btn"
+                onClick={() => sendFriendRequest(friendEmail)}
+                disabled={!friendEmail || friendRequestSending}
+              >
+                {friendRequestSending ? 'Sending...' : 'Send Request'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Verify Code Modal */}
+      {showVerifyCodeModal && (
+        <div className="modal-overlay" onClick={() => setShowVerifyCodeModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Verify Friend Request</h3>
+              <button 
+                className="modal-close-btn"
+                onClick={() => setShowVerifyCodeModal(false)}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="24" height="24">
+                  <path fill="currentColor" d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41z"/>
+                </svg>
+              </button>
+            </div>
+            <div className="modal-body">
+              <p>
+                Your friend request has been sent to <strong>{pendingRequestData?.recipientEmail}</strong>.
+              </p>
+              <p>
+                <strong>Important:</strong> To verify this request, enter the 6-digit code your friend received:
+              </p>
+              
+              <div className="code-input-container">
+                <input
+                  type="text"
+                  placeholder="Enter 6-digit code"
+                  value={confirmationCode}
+                  onChange={(e) => setConfirmationCode(e.target.value.replace(/\D/g, '').substring(0, 6))}
+                  disabled={verifyingCode}
+                  maxLength={6}
+                  pattern="\d{6}"
+                />
+              </div>
+              
+              <div className="verification-info">
+                <p className="verification-note">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="16" height="16">
+                    <path fill="currentColor" d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm1 15h-2v-2h2v2zm0-4h-2V7h2v6z"/>
+                  </svg>
+                  For demo purposes, check the browser console for the verification code.
+                </p>
+              </div>
+              
+              {codeVerificationError && (
+                <div className="code-verification-error">
+                  {codeVerificationError}
+                </div>
+              )}
+            </div>
+            <div className="modal-footer">
+              <button
+                className="cancel-btn"
+                onClick={() => setShowVerifyCodeModal(false)}
+                disabled={verifyingCode}
+              >
+                Cancel
+              </button>
+              <button
+                className="verify-code-btn"
+                onClick={() => verifyConfirmationCode(confirmationCode)}
+                disabled={confirmationCode.length !== 6 || verifyingCode}
+              >
+                {verifyingCode ? 'Verifying...' : 'Verify Code'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </main>
   );
   
@@ -1102,7 +1670,9 @@ const Dashboard = () => {
       
       <div className="dashboard-main" ref={mainContentRef}>
         {/* Conditional rendering based on current view */}
-        {currentView === 'main' ? renderMainView() : renderProfileView()}
+        {currentView === 'main' ? renderMainView() : 
+         currentView === 'profile' ? renderProfileView() :
+         <SavedTrips />}
       </div>
       
       {/* Confirm modal for account deletion */}

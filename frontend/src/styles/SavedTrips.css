@@ -1,0 +1,408 @@
+/* SavedTrips.css */
+.saved-trips-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  overflow-y: auto;
+  background-color: #001208;
+  color: #fff;
+  padding: 24px 32px;
+}
+
+.saved-trips-header {
+  margin-bottom: 32px;
+  border-bottom: 1px solid rgba(157, 255, 176, 0.15);
+  padding-bottom: 16px;
+}
+
+.saved-trips-header h1 {
+  font-family: var(--primary-font);
+  font-size: 2.5rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  background: linear-gradient(
+    to right,
+    var(--mint-green) 0%,
+    #c1ffcb 50%,
+    var(--mint-green) 100%
+  );
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  text-fill-color: transparent;
+}
+
+.saved-trips-description {
+  font-size: 1.1rem;
+  color: #e0e0e0;
+  margin-bottom: 16px;
+}
+
+.saved-trips-content {
+  flex: 1;
+}
+
+.no-saved-trips {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 0;
+  background-color: rgba(0, 28, 15, 0.3);
+  border-radius: 12px;
+  border: 1px solid rgba(157, 255, 176, 0.1);
+}
+
+.no-saved-trips h2 {
+  font-size: 1.8rem;
+  margin-bottom: 16px;
+  color: var(--mint-green);
+}
+
+.no-saved-trips p {
+  font-size: 1.1rem;
+  color: #e0e0e0;
+  margin-bottom: 24px;
+  max-width: 500px;
+}
+
+.create-trip-button {
+  padding: 12px 24px;
+  background: rgba(157, 255, 176, 0.15);
+  border: 1px solid rgba(157, 255, 176, 0.3);
+  color: var(--mint-green);
+  font-size: 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.create-trip-button:hover {
+  background: rgba(157, 255, 176, 0.25);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Date-grouped itineraries */
+.saved-trips-list-by-date {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.date-group {
+  display: flex;
+  flex-direction: column;
+}
+
+.date-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 0;
+  border-bottom: 1px solid rgba(157, 255, 176, 0.2);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.date-header:hover {
+  background-color: rgba(157, 255, 176, 0.05);
+}
+
+.date-header h3 {
+  font-size: 1.4rem;
+  color: rgba(157, 255, 176, 0.8);
+  font-weight: 500;
+}
+
+.expand-arrow {
+  color: rgba(157, 255, 176, 0.6);
+  transition: transform 0.3s ease;
+}
+
+.expand-arrow.expanded {
+  transform: rotate(180deg);
+}
+
+.date-itineraries {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 20px;
+  padding: 20px 0;
+}
+
+.itinerary-card {
+  background-color: rgba(0, 28, 15, 0.6);
+  border-radius: 12px;
+  border: 1px solid rgba(157, 255, 176, 0.15);
+  overflow: hidden;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  height: 240px; /* Fixed height for square-ish appearance */
+}
+
+.itinerary-card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+  border-color: rgba(157, 255, 176, 0.3);
+}
+
+.itinerary-card-content {
+  padding: 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.itinerary-title {
+  font-size: 1.3rem;
+  margin-bottom: 12px;
+  color: var(--mint-green);
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.itinerary-summary {
+  font-size: 1rem;
+  color: #e0e0e0;
+  margin-bottom: 12px;
+  flex-grow: 1;
+}
+
+.itinerary-date {
+  font-size: 0.9rem;
+  color: rgba(255, 255, 255, 0.6);
+  margin-top: auto;
+}
+
+.itinerary-card-actions {
+  padding: 14px 16px;
+  border-top: 1px solid rgba(157, 255, 176, 0.1);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+
+.view-itinerary-button,
+.delete-itinerary-button {
+  flex: 1;
+  padding: 10px 16px;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.view-itinerary-button {
+  background: rgba(157, 255, 176, 0.1);
+  border: 1px solid rgba(157, 255, 176, 0.2);
+  color: var(--mint-green);
+}
+
+.view-itinerary-button:hover {
+  background: rgba(157, 255, 176, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Delete button styles */
+.delete-itinerary-button {
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid rgba(244, 67, 54, 0.2);
+  color: rgba(244, 67, 54, 0.8);
+}
+
+.delete-itinerary-button:hover {
+  background: rgba(244, 67, 54, 0.2);
+  color: #f44336;
+  transform: translateY(-2px);
+}
+
+.delete-itinerary-button svg {
+  margin-right: 4px;
+}
+
+/* Delete confirmation styles */
+.delete-confirmation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+  font-size: 0.9rem;
+}
+
+.delete-confirmation span {
+  font-size: 0.9rem;
+  color: #f44336;
+  font-weight: 500;
+}
+
+.confirm-delete-button, 
+.cancel-delete-button {
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  flex: 1;
+  text-align: center;
+}
+
+.confirm-delete-button {
+  background: rgba(244, 67, 54, 0.2);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  color: #f44336;
+}
+
+.confirm-delete-button:hover:not(:disabled) {
+  background: rgba(244, 67, 54, 0.3);
+}
+
+.cancel-delete-button {
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  color: #e0e0e0;
+}
+
+.cancel-delete-button:hover:not(:disabled) {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+.confirm-delete-button:disabled,
+.cancel-delete-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.saved-trips-error {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 48px 0;
+  background-color: rgba(244, 67, 54, 0.05);
+  border: 1px solid rgba(244, 67, 54, 0.2);
+  border-radius: 12px;
+}
+
+.saved-trips-error h2 {
+  color: #f44336;
+  margin-bottom: 16px;
+  font-size: 1.8rem;
+}
+
+.saved-trips-error p {
+  color: #e0e0e0;
+  margin-bottom: 24px;
+  max-width: 500px;
+  font-size: 1.1rem;
+}
+
+.retry-button {
+  padding: 12px 24px;
+  background: rgba(244, 67, 54, 0.1);
+  border: 1px solid rgba(244, 67, 54, 0.3);
+  color: #f44336;
+  font-size: 1rem;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.retry-button:hover {
+  background: rgba(244, 67, 54, 0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Loading state */
+.loading {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 200px;
+  color: var(--mint-green);
+  font-size: 1.2rem;
+  position: relative;
+}
+
+.loading::before {
+  content: '';
+  display: block;
+  width: 30px;
+  height: 30px;
+  margin-right: 16px;
+  border-radius: 50%;
+  border: 3px solid rgba(157, 255, 176, 0.3);
+  border-top-color: var(--mint-green);
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .saved-trips-container {
+    padding: 16px;
+  }
+  
+  .saved-trips-header h1 {
+    font-size: 2rem;
+  }
+  
+  .saved-trips-description {
+    font-size: 1rem;
+  }
+  
+  .date-header h3 {
+    font-size: 1.2rem;
+  }
+  
+  .date-itineraries {
+    grid-template-columns: 1fr;
+  }
+  
+  .delete-confirmation {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+  }
+  
+  .delete-confirmation span {
+    display: block;
+    margin-bottom: 8px;
+    text-align: center;
+  }
+  
+  .itinerary-card-actions {
+    flex-wrap: wrap;
+  }
+  
+  .no-saved-trips h2 {
+    font-size: 1.5rem;
+  }
+  
+  .no-saved-trips p {
+    font-size: 1rem;
+  }
+} 

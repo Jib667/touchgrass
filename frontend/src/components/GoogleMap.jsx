@@ -372,7 +372,7 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
     return () => {
         if (instructionsTimeoutRef.current) {
           clearTimeout(instructionsTimeoutRef.current);
-      }
+        }
     };
   }, [externalDrawingMode, drawingManager]);
 
@@ -441,10 +441,10 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
         }
         // Store the new overlay
         lastCircleOverlayRef.current = circle;
-
+        
         // Immediately set drawing mode to null to prevent multiple shapes
         dm.setDrawingMode(null);
-
+        
         // Get center and radius from circle
         const center = { 
           lat: circle.getCenter().lat(), 
@@ -454,7 +454,7 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
 
         // Create the circle data
         const circleData = { type: 'circle', center, radius };
-
+      
         // Notify parent
         if (onRegionSelect) onRegionSelect(circleData);
 
@@ -502,8 +502,8 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
         type: 'circle',
         center: center,
       radius: radiusToSet
-    });
-    
+      });
+
     // Keep the marker on the edge
     setResizeMarker(newMarkerPosition);
     setShowConfirmButton(true);
@@ -512,7 +512,7 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
   const handleResizeMarkerDragEnd = useCallback((e) => {
     const currentDrawingVal = currentDrawingRef.current;
     if (!currentDrawingVal || currentDrawingVal.type !== 'circle') return;
-    
+  
     // Immediately confirm the circle with the current radius
     setSelectedRegion(currentDrawingVal);
     if (onRegionSelect) onRegionSelect(currentDrawingVal);
@@ -601,7 +601,7 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
         
         {/* Circle - ONLY rendered if we have a currentDrawing or selectedRegion of type circle */}
         {currentDrawing?.type === 'circle' ? (
-          <Circle 
+          <Circle
             key={`current-circle-${renderKey}`}
             center={currentDrawing.center} 
             radius={currentDrawing.radius} 
@@ -661,14 +661,14 @@ const GoogleMapRenderer = forwardRef(({ googleMapsApiKey, onRegionSelect, drawin
                 className="clear-region-btn map-secondary-action-button" 
                 title="Clear current drawing or selected region"
               >
-                Clear
-              </button>
-            </div>
-          )}
-          
+            Clear
+          </button>
+        </div>
+      )}
+      
           {showInstructions && drawingModeInternal === 'polygon' && (
             <div className="drawing-instructions"><p>Click to add points. Click first point to close. ESC to cancel.</p></div>
-          )}
+      )}
           {showInstructions && drawingModeInternal === 'circle' && (
             <div className="drawing-instructions"><p>Click to place circle. Drag handle to resize. ESC to cancel.</p></div>
           )}

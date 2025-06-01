@@ -40,6 +40,9 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
     return `${hours}:${minutes.toString().padStart(2, '0')} ${period}`;
   };
   
+  // Check if this is a saved itinerary being viewed from SavedTrips
+  const isFromSavedTrips = itinerary?.fromSavedTrips === true;
+  
   // Process itinerary items to extract location links and format times
   useEffect(() => {
     if (itinerary?.items && itinerary.items.length > 0) {
@@ -397,6 +400,34 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
     };
   }, [itinerary, onClose, modalRef]);
   
+  // Add a new function to clean the raw itinerary text
+  const cleanRawItinerary = (rawText) => {
+    if (!rawText) return '';
+    
+    // Remove common LLM-generated disclaimers at the end
+    const disclaimerPatterns = [
+      /This itinerary (is designed to|aims to|attempts to|has been created to).*$/s,
+      /Note: This (itinerary|plan) (is|has been|was).*$/s,
+      /Remember (that|to).*$/s,
+      /I hope (this|that|you).*$/s,
+      /Feel free to.*$/s,
+      /Disclaimer:.*$/s,
+      /Enjoy your.*$/s,
+      /Have a.*$/s,
+      /Please note.*$/s
+    ];
+    
+    let cleanedText = rawText;
+    
+    // Apply each pattern to remove disclaimers
+    disclaimerPatterns.forEach(pattern => {
+      cleanedText = cleanedText.replace(pattern, '');
+    });
+    
+    // Trim any extra whitespace at the end
+    return cleanedText.trim();
+  };
+  
   // If we don't have itinerary data yet
   if (!itinerary) {
     return (
@@ -431,24 +462,32 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
           )}
           
           <div className="itinerary-content raw-content">
-            <pre>{itinerary?.raw || 'No itinerary data available.'}</pre>
+            <pre>{cleanRawItinerary(itinerary?.raw) || 'No itinerary data available.'}</pre>
             
             <div className="itinerary-footer">
-              <button 
-                className="save-itinerary-button"
-                onClick={saveItinerary}
-                disabled={savingItinerary}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                  <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"/>
-                </svg>
-                {savingItinerary ? 'Saving...' : 'Save Itinerary'}
-              </button>
+              {!isFromSavedTrips && (
+                <button 
+                  className="save-itinerary-button"
+                  onClick={saveItinerary}
+                  disabled={savingItinerary}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                    <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"/>
+                  </svg>
+                  {savingItinerary ? 'Saving...' : 'Save Itinerary'}
+                </button>
+              )}
               <button className="share-itinerary-button" onClick={shareItinerary}>
                 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
                   <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.5-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92c0-1.61-1.31-2.92-2.92-2.92zM18 4c.55 0 1 .45 1 1s-.45 1-1 1-1-.45-1-1 .45-1 1-1zM6 13c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1zm12 7.02c-.55 0-1-.45-1-1s.45-1 1-1 1 .45 1 1-.45 1-1 1z"/>
                 </svg>
                 Share
+              </button>
+              <button className="add-to-calendar-button" onClick={addToGoogleCalendar}>
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M19 3h-1V1h-2v2H8V1H6v2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2zm0 16H5V9h14v10zM5 7V5h14v2H5zm2 4h10v2H7zm0 4h7v2H7z"/>
+                </svg>
+                Add to Google Calendar
               </button>
             </div>
           </div>
@@ -490,16 +529,18 @@ const ItineraryDisplay = ({ itinerary, onClose }) => {
           )}
           
           <div className="itinerary-footer">
-            <button 
-              className="save-itinerary-button"
-              onClick={saveItinerary}
-              disabled={savingItinerary}
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
-                <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"/>
-              </svg>
-              {savingItinerary ? 'Saving...' : 'Save Itinerary'}
-            </button>
+            {!isFromSavedTrips && (
+              <button 
+                className="save-itinerary-button"
+                onClick={saveItinerary}
+                disabled={savingItinerary}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
+                  <path d="M19 12v7H5v-7H3v7c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2v-7h-2zm-6 .67l2.59-2.58L17 11.5l-5 5-5-5 1.41-1.41L11 12.67V3h2v9.67z"/>
+                </svg>
+                {savingItinerary ? 'Saving...' : 'Save Itinerary'}
+              </button>
+            )}
             
             <button className="share-itinerary-button" onClick={shareItinerary}>
               <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18" fill="currentColor">
