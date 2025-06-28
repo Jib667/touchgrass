@@ -1,6 +1,8 @@
 # TouchGrass
 
-An interactive web application that helps users explore the world by selecting regions on Google Maps to get AI-suggested itineraries.
+An interactive web application that helps users explore the world by selecting regions on Google Maps to get AI-suggested itineraries based on geo-location.
+
+*Note: THIS APPLICATION IS NOT YET PUBLISHED, WITH PLANS TO BE PUBLISHED WHEN FUNDS CAN BE SECURED FOR API COSTS. TO USE LOCALLY, FOLLOW THE BELLOW STEPS AND SET UP A FIREBASE, GOOGLE PLACES, AND GOOGLE GEMINI API.
 
 ## Project Structure
 
