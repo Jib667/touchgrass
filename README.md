@@ -4,6 +4,39 @@ An interactive web application that helps users explore the world by selecting r
 
 *Note: THIS APPLICATION IS NOT YET PUBLISHED, WITH PLANS TO BE PUBLISHED WHEN FUNDS CAN BE SECURED FOR API COSTS. TO USE LOCALLY, FOLLOW THE BELLOW STEPS AND SET UP A FIREBASE, GOOGLE PLACES, AND GOOGLE GEMINI API.
 
+![Screenshot 2025-06-28 at 2 56 08 PM](https://github.com/user-attachments/assets/ba936701-8f0e-499b-bd76-1244f724d247)
+Landing Page
+
+![Screenshot 2025-06-28 at 2 56 45 PM](https://github.com/user-attachments/assets/675050c1-a4ed-4591-b5f1-14ba47cc32c7)
+Firebase OAuth
+
+![Screenshot 2025-06-28 at 2 59 06 PM](https://github.com/user-attachments/assets/9556f205-8282-4b19-9026-0316e2bc3a5d)
+Onboarding
+
+![Screenshot 2025-06-28 at 3 00 51 PM](https://github.com/user-attachments/assets/2cc8335c-a8a7-48f3-b218-86c515a90db8)
+Dashboard View
+
+![Screenshot 2025-06-28 at 3 01 09 PM](https://github.com/user-attachments/assets/4e6af8d3-1d27-4c7d-b814-206784e5d2be)
+Dasboard View
+
+![Screenshot 2025-06-28 at 3 01 30 PM](https://github.com/user-attachments/assets/dca3b483-8cbf-4d2d-9202-bf6c6e4d725e)
+Dashboard View
+
+![Screenshot 2025-06-28 at 3 01 53 PM](https://github.com/user-attachments/assets/7d563dec-9218-4b5a-9d3e-03a0f248dad3)
+Geo-Summary (Circle)
+
+![Screenshot 2025-06-28 at 3 02 26 PM](https://github.com/user-attachments/assets/502e944e-3de0-4750-a755-5d8cad90dd9c)
+Geo-Summary (Custom)
+
+![Screenshot 2025-06-28 at 3 02 54 PM](https://github.com/user-attachments/assets/be6a1eb4-764a-45c9-b67c-1a65579198cb)
+Itinerary Creator
+
+![Screenshot 2025-06-28 at 3 03 22 PM](https://github.com/user-attachments/assets/5491bba3-25ea-4ca3-8932-0712180d0d28)
+Itinerary View
+
+![Screenshot 2025-06-28 at 3 03 52 PM](https://github.com/user-attachments/assets/37aa761d-7071-47fc-bca0-172f3b8ea340)
+Saved Trips
+
 ## Project Structure
 
 - `frontend/`: React/Vite frontend application
